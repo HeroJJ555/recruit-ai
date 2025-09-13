@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,59 +9,60 @@ import { Brain, Send, User, Bot } from "lucide-react"
 
 interface Message {
   id: string
-  type: "user" | "ai"
+  role: "user" | "assistant"
   content: string
   timestamp: Date
+  pending?: boolean
+  error?: boolean
 }
 
 export function AIAssistantWidget() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      type: "ai",
-      content:
-        "Cześć! Jestem Twoim asystentem AI. Mogę pomóc Ci w analizie kandydatów, tworzeniu opisów stanowisk, czy optymalizacji procesu rekrutacyjnego. W czym mogę Ci dzisiaj pomóc?",
-      timestamp: new Date(),
-    },
-  ])
+  const [messages, setMessages] = useState<Message[]>([{
+    id: "init",
+    role: "assistant",
+    content: "Cześć! Jestem Twoim lekkim asystentem AI (demo). Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
+    timestamp: new Date(),
+  }])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+  useEffect(() => {
+    // Auto scroll to bottom on new message
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: "user",
-      content: inputValue,
-      timestamp: new Date(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
+  async function handleSendMessage() {
+    if (!inputValue.trim() || isLoading) return
+    setErrorMsg(null)
+    const userContent = inputValue.trim()
+    const userMessage: Message = { id: Date.now().toString(), role: "user", content: userContent, timestamp: new Date() }
+    const pendingAssistant: Message = { id: userMessage.id + "_pending", role: "assistant", content: "…", timestamp: new Date(), pending: true }
+    setMessages(prev => [...prev, userMessage, pendingAssistant])
     setInputValue("")
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: "ai",
-        content: getAIResponse(inputValue),
-        timestamp: new Date(),
+    const payloadMessages = messages
+      .concat([{ id: "temp" + Date.now(), role: "user", content: userContent, timestamp: new Date() }])
+      .map(m => ({ role: m.role, content: m.content }))
+    const payload = {
+      messages: payloadMessages,
+    }
+    try {
+      const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `Błąd API (${res.status})`)
       }
-      setMessages((prev) => [...prev, aiResponse])
+      const data = await res.json()
+      setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: data.answer || "(pusta odpowiedź)", pending: false } : m))
+    } catch (e: any) {
+      setErrorMsg(e.message)
+      setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: "Błąd: " + e.message, error: true, pending: false } : m))
+    } finally {
       setIsLoading(false)
-    }, 1500)
-  }
-
-  const getAIResponse = (input: string): string => {
-    const responses = [
-      "Na podstawie analizy Twojego zapytania, sugeruję skupienie się na kandydatach z doświadczeniem w technologiach, które wymieniłeś. Mogę przeanalizować CV i wskazać najlepsze dopasowania.",
-      "Doskonałe pytanie! Mogę pomóc Ci stworzyć opis stanowiska, który przyciągnie odpowiednich kandydatów. Jakie są kluczowe wymagania dla tej pozycji?",
-      "Analizując obecne trendy rynkowe, widzę, że kandydaci z takimi umiejętnościami są bardzo poszukiwani. Sugeruję rozszerzenie kryteriów wyszukiwania.",
-      "Mogę przeanalizować Twoją bazę kandydatów i znaleźć osoby, które mogą być zainteresowane podobnymi pozycjami. Czy chcesz, żebym przygotował listę rekomendacji?",
-    ]
-    return responses[Math.floor(Math.random() * responses.length)]
+    }
   }
 
   return (
@@ -76,60 +77,38 @@ export function AIAssistantWidget() {
       <CardContent className="flex-1 flex flex-col space-y-4">
         <ScrollArea className="flex-1 pr-4">
           <div className="space-y-4">
-            {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`flex items-start space-x-2 max-w-[80%] ${
-                    message.type === "user" ? "flex-row-reverse space-x-reverse" : ""
-                  }`}
-                >
-                  <div className={`p-2 rounded-full ${message.type === "user" ? "bg-primary" : "bg-secondary"}`}>
-                    {message.type === "user" ? (
-                      <User className="h-4 w-4 text-primary-foreground" />
-                    ) : (
-                      <Bot className="h-4 w-4 text-secondary-foreground" />
-                    )}
-                  </div>
-                  <div
-                    className={`p-3 rounded-lg ${
-                      message.type === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="flex items-start space-x-2">
-                  <div className="p-2 rounded-full bg-secondary">
-                    <Bot className="h-4 w-4 text-secondary-foreground" />
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                      <div
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: "0.1s" }}
-                      />
-                      <div
-                        className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      />
+            {messages.map(message => {
+              const isUser = message.role === "user"
+              return (
+                <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                  <div className={`flex items-start space-x-2 max-w-[80%] ${isUser ? "flex-row-reverse space-x-reverse" : ""}`}>
+                    <div className={`p-2 rounded-full ${isUser ? "bg-primary" : message.error ? "bg-destructive/20" : "bg-secondary"}`}>
+                      {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className={`h-4 w-4 ${message.error ? "text-destructive" : "text-secondary-foreground"}`} />}
+                    </div>
+                    <div className={`p-3 rounded-lg text-sm leading-relaxed ${isUser ? "bg-primary text-primary-foreground" : message.error ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                      <p>{message.content}</p>
+                      {message.pending && !message.error && (
+                        <div className="mt-2 flex space-x-1">
+                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
+                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.1s" }} />
+                          <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )
+            })}
+            <div ref={scrollRef} />
           </div>
         </ScrollArea>
+        {errorMsg && <p className="text-xs text-destructive -mt-2">{errorMsg}</p>}
         <div className="flex space-x-2">
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Zadaj pytanie asystentowi AI..."
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
             disabled={isLoading}
           />
           <Button onClick={handleSendMessage} disabled={isLoading || !inputValue.trim()}>
