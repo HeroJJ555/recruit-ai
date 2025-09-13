@@ -17,7 +17,7 @@ export default function SignInPage() {
             <div className="text-center space-y-2">
               <h1 className="font-heading text-2xl font-bold">Zaloguj się</h1>
               <p className="text-muted-foreground text-sm">
-                Użyj konta Google, aby bezpiecznie się zalogować
+                Zaloguj się przez Google lub email i hasło
               </p>
             </div>
 
