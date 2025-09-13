@@ -134,7 +134,6 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
                   {candidate.cvFileName ? (
                     <>
                       <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-muted-foreground" /><span className="truncate" title={candidate.cvFileName}>{candidate.cvFileName}</span></div>
-                      <div className="text-xs text-muted-foreground">{candidate.cvFileType || 'plik'} • {formatFileSize(candidate.cvFileSize)}</div>
                       <Link href={`/api/candidate/applications/${candidate.id}/cv`} prefetch={false}>
                         <Button size="sm" variant="secondary"><FileDown className="h-4 w-4 mr-2" /> Pobierz</Button>
                       </Link>
