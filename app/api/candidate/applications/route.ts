@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
         lastName: true,
         email: true,
         position: true,
+        experience: true,
         skills: true,
         cvFileName: true,
         createdAt: true,
