@@ -5,6 +5,8 @@ import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -78,18 +80,38 @@ export function Sidebar({ className }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* User Profile */}
+      {/* User Avatar + Hover / Click Menu */}
       {!collapsed && (
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center space-x-3">
-            <div className="bg-sidebar-primary rounded-full p-2">
-              <Users className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
-              <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center gap-3 group">
+                <Avatar className="h-10 w-10 ring-1 ring-sidebar-border group-hover:ring-sidebar-accent transition">
+                  <AvatarImage src={session?.user?.image || undefined} alt={session?.user?.name || 'avatar'} />
+                  <AvatarFallback className="text-sm">
+                    {(session?.user?.name || session?.user?.email || 'U')[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col text-left overflow-hidden">
+                  <span className="text-sm font-medium truncate">{session?.user?.name || session?.user?.email || 'Użytkownik'}</span>
+                  <span className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ''}</span>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="end" className="w-56 mr-2">
+              <DropdownMenuLabel className="truncate max-w-full">
+                {session?.user?.name || session?.user?.email || 'Użytkownik'}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/recruiter/settings">Ustawienia</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/' })} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                Wyloguj
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>

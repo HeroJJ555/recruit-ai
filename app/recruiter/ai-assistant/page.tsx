@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { AIAssistantWidget } from "@/components/recruiter/ai-assistant-widget"
-import { SignOutButton } from "@/components/sign-out-button"
 
 export default async function AIAssistantPage() {
   const session = await getServerSession(authOptions)
@@ -16,10 +15,6 @@ export default async function AIAssistantPage() {
           <div>
             <h1 className="font-heading font-bold text-2xl leading-tight">Asystent AI</h1>
             <p className="text-muted-foreground text-sm">Rozmawiaj z asystentem aby przyspieszyć proces rekrutacji.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Wylogowanie */}
-            <SignOutButton />
           </div>
         </header>
         <AIAssistantWidget />

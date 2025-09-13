@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import ClientSettingsTabs from "./settingsTabs"
-import { SignOutButton } from "@/components/sign-out-button"
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
@@ -18,9 +17,6 @@ export default async function SettingsPage() {
           <div>
             <h1 className="font-heading font-bold text-2xl leading-tight">Ustawienia</h1>
             <p className="text-muted-foreground text-sm">Zarządzaj profilem, preferencjami AI i powiadomieniami.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <SignOutButton />
           </div>
         </header>
         <ClientSettingsTabs user={user} />
