@@ -6,19 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Brain,
-  BarChart3,
-  Settings,
-  MessageSquare,
-  Search,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react"
+import { LayoutDashboard, Users, FileText, Brain, BarChart3, Settings, MessageSquare, Search, Calendar } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/recruiter", icon: LayoutDashboard },
@@ -37,30 +25,19 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false)
+  // Sidebar always expanded now
+  const collapsed = false
   const pathname = usePathname()
   const { data: session } = useSession()
 
   return (
     <div className={cn("flex flex-col bg-sidebar border-r border-sidebar-border", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-        {!collapsed && (
-          <div className="flex items-center space-x-2">
-            <div className="bg-sidebar-primary rounded-lg p-2">
-              <Brain className="h-6 w-6 text-sidebar-primary-foreground" />
-            </div>
-            <span className="font-heading font-bold text-lg text-sidebar-foreground">RecruitAI</span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setCollapsed(!collapsed)}
-          className="text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+      <div className="flex items-center p-4 border-b border-sidebar-border space-x-2">
+        <div className="bg-sidebar-primary rounded-lg p-2">
+          <Brain className="h-6 w-6 text-sidebar-primary-foreground" />
+        </div>
+        <span className="font-heading font-bold text-lg text-sidebar-foreground">RecruitAI</span>
       </div>
 
       {/* Navigation */}
@@ -90,19 +67,17 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User Profile */}
-      {!collapsed && (
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center space-x-3">
-            <div className="bg-sidebar-primary rounded-full p-2">
-              <Users className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
-              <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
-            </div>
+      <div className="p-4 border-t border-sidebar-border">
+        <div className="flex items-center space-x-3">
+          <div className="bg-sidebar-primary rounded-full p-2">
+            <Users className="h-4 w-4 text-sidebar-primary-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
+            <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -10,10 +10,13 @@ export default async function AnalyticsPage() {
     <div className="flex h-screen bg-background">
       <Sidebar className="w-64 flex-shrink-0" />
       <main className="flex-1 overflow-auto p-6 space-y-6">
-        <div>
-          <h1 className="font-heading font-bold text-2xl mb-1">Analityka</h1>
-          <p className="text-muted-foreground text-sm">Kluczowe wskaźniki wydajności procesów rekrutacyjnych.</p>
-        </div>
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="font-heading font-bold text-2xl leading-tight">Analityka</h1>
+            <p className="text-muted-foreground text-sm">Kluczowe wskaźniki wydajności procesów rekrutacyjnych.</p>
+          </div>
+          <div className="flex items-center gap-3" />
+        </header>
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           <div className="border rounded-lg p-4 h-40 flex items-center justify-center text-muted-foreground text-sm">(TODO) Wykres 1</div>
           <div className="border rounded-lg p-4 h-40 flex items-center justify-center text-muted-foreground text-sm">(TODO) Wykres 2</div>

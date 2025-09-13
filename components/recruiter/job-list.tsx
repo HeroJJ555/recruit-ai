@@ -5,10 +5,22 @@ import { formatDistanceToNow } from "date-fns"
 import { pl } from "date-fns/locale"
 
 export async function JobList() {
-  const jobs = (await (prisma as any).job?.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  })) || []
+  let jobs: any[] = []
+  if ((prisma as any).job?.findMany) {
+    try {
+      jobs = await (prisma as any).job.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+    } catch (e: any) {
+      console.error("JobList query error:", e?.message)
+      return (
+        <div className="border rounded-lg p-8 text-center text-muted-foreground text-sm">
+          Model Job nie jest zmaterializowany w bazie. Uruchom migracje: <code>npx prisma migrate dev</code>
+        </div>
+      )
+    }
+  }
 
   if (!jobs.length) {
     return <div className="border rounded-lg p-8 text-center text-muted-foreground text-sm">Brak ofert. Dodaj pierwszą.</div>
@@ -24,7 +36,7 @@ export async function JobList() {
               <JobStatusBadge status={job.status} />
             </div>
             <p className="text-xs text-muted-foreground">
-              {job.department ? job.department + " • " : ""}{job.location || "(zdalnie / n/d)"} • {job.openings} wakat(y)
+              {job.department ? job.department + " •     " : ""}{job.location || "(zdalnie / n/d)"} • {job.openings} wakat(y)
             </p>
             <p className="text-[11px] text-muted-foreground/70">Utworzono {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true, locale: pl })}</p>
           </div>

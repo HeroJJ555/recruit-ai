@@ -58,58 +58,66 @@ export function JobForm({ onCreated }: JobFormProps) {
           Nowa oferta
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Dodaj ofertę pracy</DialogTitle>
+          <DialogTitle className="text-xl">Dodaj ofertę pracy</DialogTitle>
         </DialogHeader>
-        <form action={handleSubmit} className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="title">Tytuł *</Label>
-              <Input id="title" name="title" required minLength={3} />
+        <form action={handleSubmit} className="space-y-8">
+          <fieldset className="space-y-6">
+            <legend className="font-semibold text-sm tracking-wide text-muted-foreground">Podstawowe informacje</legend>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-3">
+                <Label htmlFor="title">Tytuł *</Label>
+                <Input id="title" name="title" required minLength={3} placeholder="np. Senior Frontend Developer" />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="department">Dział</Label>
+                <Input id="department" name="department" placeholder="IT / Marketing" />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="location">Lokalizacja</Label>
+                <Input id="location" name="location" placeholder="Warszawa / Zdalnie" />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="employmentType">Typ zatrudnienia</Label>
+                <Input id="employmentType" name="employmentType" placeholder="pełny etat" />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="seniority">Poziom</Label>
+                <Input id="seniority" name="seniority" placeholder="mid" />
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="openings">Liczba wakatów</Label>
+                <Input id="openings" name="openings" type="number" min={1} defaultValue={1} />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="department">Dział</Label>
-              <Input id="department" name="department" />
+          </fieldset>
+
+          <fieldset className="space-y-6">
+            <legend className="font-semibold text-sm tracking-wide text-muted-foreground">Opis i wymagania</legend>
+            <div className="space-y-3">
+              <Label htmlFor="description">Opis *</Label>
+              <Textarea id="description" name="description" required rows={5} placeholder="Krótki opis stanowiska oraz jego celu." />
             </div>
-            <div>
-              <Label htmlFor="location">Lokalizacja</Label>
-              <Input id="location" name="location" />
+            <div className="space-y-3">
+              <Label htmlFor="requirements">Wymagania</Label>
+              <Textarea id="requirements" name="requirements" rows={4} placeholder="Wymagane technologie / doświadczenie" />
             </div>
-            <div>
-              <Label htmlFor="employmentType">Typ zatrudnienia</Label>
-              <Input id="employmentType" name="employmentType" placeholder="pełny etat" />
+            <div className="space-y-3">
+              <Label htmlFor="benefits">Benefity</Label>
+              <Textarea id="benefits" name="benefits" rows={4} placeholder="Dodatki, pakiety, kultura, itd." />
             </div>
-            <div>
-              <Label htmlFor="seniority">Poziom</Label>
-              <Input id="seniority" name="seniority" placeholder="mid" />
+          </fieldset>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Switch id="publish" checked={publish} onCheckedChange={setPublish} />
+              <Label htmlFor="publish" className="text-sm">Opublikuj od razu</Label>
             </div>
-            <div>
-              <Label htmlFor="openings">Liczba wakatów</Label>
-              <Input id="openings" name="openings" type="number" min={1} defaultValue={1} />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-3 pt-2 border-t mt-4">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>Anuluj</Button>
+              <Button type="submit" disabled={loading}>{loading ? "Zapisywanie..." : "Zapisz"}</Button>
             </div>
-          </div>
-          <div>
-            <Label htmlFor="description">Opis *</Label>
-            <Textarea id="description" name="description" required rows={4} />
-          </div>
-          <div>
-            <Label htmlFor="requirements">Wymagania</Label>
-            <Textarea id="requirements" name="requirements" rows={3} />
-          </div>
-          <div>
-            <Label htmlFor="benefits">Benefity</Label>
-            <Textarea id="benefits" name="benefits" rows={3} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id="publish" checked={publish} onCheckedChange={setPublish} />
-            <Label htmlFor="publish">Opublikuj od razu</Label>
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>Anuluj</Button>
-            <Button type="submit" disabled={loading}>{loading ? "Zapisywanie..." : "Zapisz"}</Button>
-          </div>
         </form>
       </DialogContent>
     </Dialog>

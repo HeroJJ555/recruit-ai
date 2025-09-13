@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   // Use a direct (non-pooled) connection for migrations/introspection (bypasses PgBouncer on Supabase)
   directUrl = env("DIRECT_URL")
 }
@@ -24,6 +24,7 @@ model User {
   accounts              Account[]
   sessions              Session[]
   candidateApplications CandidateApplication[]
+  jobs                  Job[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -34,7 +35,7 @@ model CandidateApplication {
   userId String? // Optional link to authenticated user
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   jobId  String?
-  job    Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  job    Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   firstName String
   lastName  String
@@ -74,25 +75,25 @@ enum JobStatus {
 }
 
 model Job {
-  id          String     @id @default(cuid())
-  title       String
-  slug        String     @unique
-  department  String?
-  location    String?
-  employmentType String? // np. full-time, contract
-  seniority   String?    // junior | mid | senior | lead
-  description String
-  requirements String?
+  id               String                 @id @default(cuid())
+  title            String
+  slug             String                 @unique
+  department       String?
+  location         String?
+  employmentType   String? // np. full-time, contract
+  seniority        String? // junior | mid | senior | lead
+  description      String
+  requirements     String?
   responsibilities String?
-  benefits    String?
-  status      JobStatus  @default(DRAFT)
-  openings    Int        @default(1)
-  publishedAt DateTime?
-  ownerId     String?
-  owner       User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  applications CandidateApplication[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  benefits         String?
+  status           JobStatus              @default(DRAFT)
+  openings         Int                    @default(1)
+  publishedAt      DateTime?
+  ownerId          String?
+  owner            User?                  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  applications     CandidateApplication[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@index([status])
   @@index([publishedAt])

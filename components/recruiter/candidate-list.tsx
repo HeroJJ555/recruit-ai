@@ -12,10 +12,16 @@ export async function CandidateList() {
   let candidates: any[] = []
   // If Prisma client has the model generated, query it. Otherwise fall back to empty list.
   if ((prisma as any).candidateApplication?.findMany) {
-    candidates = await (prisma as any).candidateApplication.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    })
+    try {
+      candidates = await (prisma as any).candidateApplication.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      })
+    } catch (e: any) {
+      // Graceful degradation if schema not migrated (e.g., missing jobId column)
+      console.error("CandidateList query error:", e?.message)
+      candidates = []
+    }
   }
   const getScoreColor = (score: number | null | undefined) => {
     if ((score ?? 0) >= 90) return "text-green-600"

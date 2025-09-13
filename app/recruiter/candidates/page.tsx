@@ -40,9 +40,10 @@ export default async function RecruiterCandidatesPage() {
         <header className="bg-background border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="font-heading font-bold text-2xl">Kandydaci</h1>
-              <p className="text-muted-foreground">Lista najnowszych zgłoszeń kandydatów</p>
+              <h1 className="font-heading font-bold text-2xl leading-tight">Kandydaci</h1>
+              <p className="text-muted-foreground text-sm">Lista najnowszych zgłoszeń kandydatów</p>
             </div>
+            <div className="flex items-center gap-3" />
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">

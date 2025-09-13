@@ -12,10 +12,13 @@ export default async function SettingsPage() {
     <div className="flex h-screen bg-background">
       <Sidebar className="w-64 flex-shrink-0" />
       <main className="flex-1 overflow-auto p-6 space-y-6 max-w-3xl">
-        <div>
-          <h1 className="font-heading font-bold text-2xl mb-1">Ustawienia</h1>
-          <p className="text-muted-foreground text-sm">Konfiguracja konta i preferencje rekrutera.</p>
-        </div>
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="font-heading font-bold text-2xl leading-tight">Ustawienia</h1>
+            <p className="text-muted-foreground text-sm">Konfiguracja konta i preferencje rekrutera.</p>
+          </div>
+          <div className="flex items-center gap-3" />
+        </header>
         <form className="space-y-4">
           <div>
             <label className="block text-sm mb-1 font-medium">Nazwa organizacji</label>
