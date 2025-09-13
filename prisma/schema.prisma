@@ -33,6 +33,8 @@ model CandidateApplication {
   id     String  @id @default(cuid())
   userId String? // Optional link to authenticated user
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  jobId  String?
+  job    Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
   firstName String
   lastName  String
@@ -62,6 +64,39 @@ model CandidateApplication {
   @@index([createdAt])
   @@index([position])
   @@index([storageKey])
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+model Job {
+  id          String     @id @default(cuid())
+  title       String
+  slug        String     @unique
+  department  String?
+  location    String?
+  employmentType String? // np. full-time, contract
+  seniority   String?    // junior | mid | senior | lead
+  description String
+  requirements String?
+  responsibilities String?
+  benefits    String?
+  status      JobStatus  @default(DRAFT)
+  openings    Int        @default(1)
+  publishedAt DateTime?
+  ownerId     String?
+  owner       User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  applications CandidateApplication[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@index([ownerId])
 }
 
 model Account {

@@ -2,8 +2,8 @@ import { Sidebar } from "@/components/recruiter/sidebar"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { JobForm } from "@/components/recruiter/job-form"
+import { JobList } from "@/components/recruiter/job-list"
 
 export default async function JobsPage() {
   const session = await getServerSession(authOptions)
@@ -17,14 +17,9 @@ export default async function JobsPage() {
             <h1 className="font-heading font-bold text-2xl mb-1">Oferty pracy</h1>
             <p className="text-muted-foreground text-sm">Zarządzaj aktywnymi ofertami i dodawaj nowe.</p>
           </div>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Nowa oferta
-          </Button>
+          <JobForm />
         </div>
-        <div className="border rounded-lg p-8 text-center text-sm text-muted-foreground">
-          (TODO) Tutaj pojawi się lista ofert pracy.
-        </div>
+        <JobList />
       </main>
     </div>
   )
