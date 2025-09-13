@@ -1,12 +1,24 @@
 "use client"
 
 import { useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, FileText, Brain, BarChart3, Settings, MessageSquare, Search, Calendar } from "lucide-react"
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Brain,
+  BarChart3,
+  Settings,
+  MessageSquare,
+  Search,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/recruiter", icon: LayoutDashboard },
@@ -67,17 +79,19 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center space-x-3">
-          <div className="bg-sidebar-primary rounded-full p-2">
-            <Users className="h-4 w-4 text-sidebar-primary-foreground" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
-            <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
+      {!collapsed && (
+        <div className="p-4 border-t border-sidebar-border">
+          <div className="flex items-center space-x-3">
+            <div className="bg-sidebar-primary rounded-full p-2">
+              <Users className="h-4 w-4 text-sidebar-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
+              <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

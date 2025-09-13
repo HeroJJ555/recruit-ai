@@ -38,7 +38,7 @@ export default function RootLayout({
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${spaceGrotesk.variable} ${dmSans.variable}`}>
         <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
           <Providers>
-            <Suspense fallback={null}>{children}</Suspense>
+            {children}
           </Providers>
         </div>
         <Analytics />
