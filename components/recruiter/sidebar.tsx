@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from "lucide-react"
 
 const navigation = [
@@ -90,8 +91,8 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* User Profile */}
-      {!collapsed && (
-        <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-3">
+        {!collapsed && (
           <div className="flex items-center space-x-3">
             <div className="bg-sidebar-primary rounded-full p-2">
               <Users className="h-4 w-4 text-sidebar-primary-foreground" />
@@ -101,8 +102,22 @@ export function Sidebar({ className }: SidebarProps) {
               <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
             </div>
           </div>
-        </div>
-      )}
+        )}
+        
+        {/* Logout Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className={cn(
+            "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+            collapsed ? "w-full px-2" : "w-full justify-start"
+          )}
+        >
+          <LogOut className="h-4 w-4" />
+          {!collapsed && <span className="ml-2">Wyloguj</span>}
+        </Button>
+      </div>
     </div>
   )
 }

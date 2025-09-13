@@ -44,42 +44,103 @@ export function CVUploadForm() {
     try {
       setIsSubmitting(true)
 
-      // Basic validation
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.position || !formData.experience || !formData.cvFile) {
-        toast.error("Uzupełnij wymagane pola i dodaj CV")
+      // === WALIDACJA PRZED KONTYNUOWANIEM ===
+      const errors: string[] = []
+      
+      // Sprawdzenie wymaganych pól
+      if (!formData.firstName.trim()) errors.push("Imię jest wymagane")
+      if (!formData.lastName.trim()) errors.push("Nazwisko jest wymagane")
+      if (!formData.email.trim()) errors.push("Email jest wymagany")
+      if (!formData.position.trim()) errors.push("Stanowisko jest wymagane")
+      if (!formData.experience.trim()) errors.push("Doświadczenie jest wymagane")
+      if (!formData.skills.trim()) errors.push("Umiejętności są wymagane")
+      if (!formData.cvFile) errors.push("Plik CV jest wymagany")
+      
+      // Sprawdzenie formatu email
+      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+        errors.push("Nieprawidłowy format email")
+      }
+      
+      // Sprawdzenie doświadczenia
+      const validExperience = ["junior", "mid", "senior", "lead"]
+      if (formData.experience && !validExperience.includes(formData.experience)) {
+        errors.push("Nieprawidłowe doświadczenie (wybierz z listy)")
+      }
+      
+      // Sprawdzenie długości pól
+      if (formData.firstName.trim().length > 50) errors.push("Imię jest zbyt długie (max 50 znaków)")
+      if (formData.lastName.trim().length > 50) errors.push("Nazwisko jest zbyt długie (max 50 znaków)")
+      if (formData.position.trim().length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
+      if (formData.skills.trim().length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
+      if (formData.education.trim().length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
+      
+      // Walidacja pliku CV
+      if (formData.cvFile) {
+        const allowedTypes = [
+          "application/pdf", 
+          "application/msword", 
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]
+        
+        if (formData.cvFile.size > 10 * 1024 * 1024) {
+          errors.push("Plik CV jest zbyt duży (max 10MB)")
+        }
+        
+        if (!allowedTypes.includes(formData.cvFile.type)) {
+          errors.push("Nieprawidłowy format pliku CV (tylko PDF, DOC, DOCX)")
+        }
+      }
+      
+      // Jeśli są błędy walidacji, STOP - nie kontynuuj
+      if (errors.length > 0) {
+        toast.error(errors.join(". "))
         setIsSubmitting(false)
         return
       }
 
-      // 1) Upload CV to Supabase Storage
+      // 1) First upload CV to Supabase Storage
+      if (!formData.cvFile) {
+        throw new Error("Brak pliku CV do przesłania")
+      }
+      
       const uploadFd = new FormData()
       uploadFd.set("cv", formData.cvFile)
-      const uploadRes = await fetch("/api/candidate/uploads", { method: "POST", body: uploadFd })
+      
+      const uploadRes = await fetch("/api/candidate/uploads", { 
+        method: "POST", 
+        body: uploadFd 
+      })
+      
       if (!uploadRes.ok) {
         const data = await uploadRes.json().catch(() => ({}))
         throw new Error(data?.error || "Nie udało się przesłać pliku CV")
       }
+      
       const { bucket, key, hash, size, type, name } = await uploadRes.json()
 
-      // 2) Create application with metadata only (no raw file)
+      // 2) Create application with basic metadata only (no storage fields until DB migration)
+      const applicationData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        position: formData.position,
+        experience: formData.experience,
+        skills: formData.skills,
+        education: formData.education || undefined,
+        cvFileName: name,
+        cvFileType: type,
+        cvFileSize: size,
+        // NOTE: Temporarily omitting storage fields until DB migration is complete
+        // storageBucket: bucket,
+        // storageKey: key,
+        // fileHash: hash,
+      }
+
       const res = await fetch("/api/candidate/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone || undefined,
-          position: formData.position,
-          experience: formData.experience,
-          skills: formData.skills,
-          education: formData.education || undefined,
-          storageBucket: bucket,
-          storageKey: key,
-          fileHash: hash,
-          cvFileName: name,
-          cvFileType: type,
-        }),
+        body: JSON.stringify(applicationData),
       })
 
       if (!res.ok) {
@@ -98,7 +159,88 @@ export function CVUploadForm() {
     }
   }
 
+  const validateStep1 = (): boolean => {
+    const errors: string[] = []
+    
+    if (!formData.firstName.trim()) errors.push("Imię jest wymagane")
+    if (!formData.lastName.trim()) errors.push("Nazwisko jest wymagane")
+    if (!formData.email.trim()) errors.push("Email jest wymagany")
+    if (!formData.phone.trim()) errors.push("Telefon jest wymagany")
+    
+    // Sprawdzenie formatu email
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.push("Nieprawidłowy format email")
+    }
+    
+    // Sprawdzenie długości pól
+    if (formData.firstName.trim().length > 50) errors.push("Imię jest zbyt długie (max 50 znaków)")
+    if (formData.lastName.trim().length > 50) errors.push("Nazwisko jest zbyt długie (max 50 znaków)")
+    
+    if (errors.length > 0) {
+      toast.error(errors.join(". "))
+      return false
+    }
+    return true
+  }
+
+  const validateStep2 = (): boolean => {
+    const errors: string[] = []
+    
+    if (!formData.position.trim()) errors.push("Stanowisko jest wymagane")
+    if (!formData.experience.trim()) errors.push("Doświadczenie jest wymagane")
+    if (!formData.skills.trim()) errors.push("Umiejętności są wymagane")
+    
+    // Sprawdzenie doświadczenia
+    const validExperience = ["junior", "mid", "senior", "lead"]
+    if (formData.experience && !validExperience.includes(formData.experience)) {
+      errors.push("Nieprawidłowe doświadczenie (wybierz z listy)")
+    }
+    
+    // Sprawdzenie długości pól
+    if (formData.position.trim().length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
+    if (formData.skills.trim().length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
+    if (formData.education.trim().length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
+    
+    if (errors.length > 0) {
+      toast.error(errors.join(". "))
+      return false
+    }
+    return true
+  }
+
+  const validateStep3 = (): boolean => {
+    const errors: string[] = []
+    
+    if (!formData.cvFile) {
+      errors.push("Plik CV jest wymagany")
+    } else {
+      const allowedTypes = [
+        "application/pdf", 
+        "application/msword", 
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ]
+      
+      if (formData.cvFile.size > 10 * 1024 * 1024) {
+        errors.push("Plik CV jest zbyt duży (max 10MB)")
+      }
+      
+      if (!allowedTypes.includes(formData.cvFile.type)) {
+        errors.push("Nieprawidłowy format pliku CV (tylko PDF, DOC, DOCX)")
+      }
+    }
+    
+    if (errors.length > 0) {
+      toast.error(errors.join(". "))
+      return false
+    }
+    return true
+  }
+
   const nextStep = () => {
+    // Walidacja przed przejściem do następnego kroku
+    if (step === 1 && !validateStep1()) return
+    if (step === 2 && !validateStep2()) return
+    
     if (step < 3) setStep(step + 1)
   }
 
@@ -277,11 +419,19 @@ export function CVUploadForm() {
           </Button>
 
           {step < 3 ? (
-            <Button onClick={nextStep} disabled={step === 1 && (!formData.firstName || !formData.lastName || !formData.email)}>
+            <Button onClick={nextStep}>
               Dalej
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={!formData.cvFile || isSubmitting} className="min-w-[140px]">
+            <Button 
+              onClick={() => {
+                if (validateStep3()) {
+                  handleSubmit()
+                }
+              }} 
+              disabled={isSubmitting} 
+              className="min-w-[140px]"
+            >
               {isSubmitting ? "Przesyłanie..." : "Prześlij CV"}
             </Button>
           )}

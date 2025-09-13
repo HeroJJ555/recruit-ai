@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, memo, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Brain, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react"
@@ -15,15 +15,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useSession, signIn, signOut } from "next-auth/react"
 
-export function Navigation() {
+function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { data: session } = useSession()
 
-  const initials = (session?.user?.name || "")
-    .split(" ")
-    .filter(Boolean)
-    .map((s: string) => s[0] ?? "")
-    .join("") || "U"
+  const initials = useMemo(() => {
+    return (session?.user?.name || "")
+      .split(" ")
+      .filter(Boolean)
+      .map((s: string) => s[0] ?? "")
+      .join("") || "U"
+  }, [session?.user?.name])
 
   return (
     <nav className="bg-background/80 backdrop-blur border-b border-border sticky top-0 z-50">
@@ -63,7 +65,10 @@ export function Navigation() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
+                  <DropdownMenuItem 
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                  >
                     <LogOut className="mr-2 h-4 w-4" /> Wyloguj
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -123,7 +128,11 @@ export function Navigation() {
               )}
               <div className="pt-2 border-t border-border">
                 {session?.user ? (
-                  <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}>
+                  <Button 
+                    variant="ghost" 
+                    className="w-full text-red-600 hover:bg-red-50 hover:text-red-700" 
+                    onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}
+                  >
                     <LogOut className="mr-2 h-4 w-4" /> Wyloguj
                   </Button>
                 ) : (
@@ -139,3 +148,5 @@ export function Navigation() {
     </nav>
   )
 }
+
+export default memo(Navigation)

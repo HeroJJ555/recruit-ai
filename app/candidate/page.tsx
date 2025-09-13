@@ -1,4 +1,4 @@
-import { Navigation } from "@/components/navigation"
+import Navigation from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { CVUploadForm } from "@/components/candidate/cv-upload-form"
 import { AITips } from "@/components/candidate/ai-tips"

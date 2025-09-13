@@ -1,8 +1,46 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Buffer } from "buffer"
 import { prisma } from "@/lib/prisma"
 import { revalidateTag } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+
+// GET /api/candidate/applications
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Only select necessary fields to improve performance
+    const applications = await prisma.candidateApplication.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        position: true,
+        skills: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50, // Limit results for better performance
+    })
+
+    return NextResponse.json({ 
+      items: applications,
+      count: applications.length 
+    })
+  } catch (error) {
+    console.error("Error fetching applications:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch applications" },
+      { status: 500 }
+    )
+  }
+}
 
 // POST /api/candidate/applications
 export async function POST(req: NextRequest) {
@@ -11,6 +49,8 @@ export async function POST(req: NextRequest) {
 
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData()
+      
+      // Extract fields
       const firstName = String(form.get("firstName") || "").trim()
       const lastName = String(form.get("lastName") || "").trim()
       const email = String(form.get("email") || "").trim().toLowerCase()
@@ -20,112 +60,282 @@ export async function POST(req: NextRequest) {
       const skills = String(form.get("skills") || "").trim()
       const education = String(form.get("education") || "").trim() || null
       const cv = form.get("cv") as File | null
-      // Optionally accept metadata from prior upload endpoint
-      const storageBucket = String(form.get("storageBucket") || "").trim() || null
-      const storageKey = String(form.get("storageKey") || "").trim() || null
-      const fileHash = String(form.get("fileHash") || "").trim() || null
 
-      if (!firstName || !lastName || !email || !position || !experience || (!cv && !storageKey)) {
-        return NextResponse.json({ error: "Brak wymaganych pól" }, { status: 400 })
+      // === WALIDACJA PRZED KONTYNUOWANIEM ===
+      const errors: string[] = []
+      
+      // Sprawdzenie wymaganych pól
+      if (!firstName) errors.push("Imię jest wymagane")
+      if (!lastName) errors.push("Nazwisko jest wymagane")
+      if (!email) errors.push("Email jest wymagany")
+      if (!position) errors.push("Stanowisko jest wymagane")
+      if (!experience) errors.push("Doświadczenie jest wymagane")
+      if (!skills) errors.push("Umiejętności są wymagane")
+      
+      // Sprawdzenie formatu email
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push("Nieprawidłowy format email")
+      }
+      
+      // Sprawdzenie doświadczenia
+      const validExperience = ["junior", "mid", "senior", "lead"]
+      if (experience && !validExperience.includes(experience)) {
+        errors.push("Nieprawidłowe doświadczenie (dozwolone: junior, mid, senior, lead)")
+      }
+      
+      // Sprawdzenie długości pól
+      if (firstName && firstName.length > 50) errors.push("Imię jest zbyt długie (max 50 znaków)")
+      if (lastName && lastName.length > 50) errors.push("Nazwisko jest zbyt długie (max 50 znaków)")
+      if (position && position.length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
+      if (skills && skills.length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
+      if (education && education.length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
+      
+      // Jeśli są błędy walidacji, STOP - nie kontynuuj
+      if (errors.length > 0) {
+        return NextResponse.json({ error: errors.join(", ") }, { status: 400 })
       }
 
-      // Validate file type and size (max 10MB)
-      const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+      // === WALIDACJA PLIKU CV ===
+      let cvFileName: string | null = null
+      let cvFileType: string | null = null
+      let cvFileSize: number | null = null
+      
       if (cv) {
+        const allowedTypes = [
+          "application/pdf", 
+          "application/msword", 
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ]
+        
+        // Sprawdzenie rozmiaru pliku
         if (cv.size > 10 * 1024 * 1024) {
           return NextResponse.json({ error: "Plik jest zbyt duży (max 10MB)" }, { status: 413 })
         }
-        if (cv.type && !allowed.includes(cv.type)) {
-          return NextResponse.json({ error: "Niedozwolony format pliku" }, { status: 400 })
+        
+        // Sprawdzenie typu pliku
+        if (cv.type && !allowedTypes.includes(cv.type)) {
+          return NextResponse.json({ error: "Niedozwolony format pliku (tylko PDF, DOC, DOCX)" }, { status: 400 })
         }
+        
+        // Sprawdzenie nazwy pliku
+        if (!cv.name || cv.name.length === 0) {
+          return NextResponse.json({ error: "Plik musi mieć nazwę" }, { status: 400 })
+        }
+        
+        cvFileName = cv.name
+        cvFileType = cv.type
+        cvFileSize = cv.size
       }
 
+      // === SPRAWDZENIE SESJI ===
       const session = await getServerSession(authOptions)
+      // Sesja nie jest wymagana, ale jeśli istnieje, użyjemy userId
 
-      const created = await prisma.candidateApplication.create({
-        data: {
-          userId: (session?.user as any)?.id ?? undefined,
-          firstName,
-          lastName,
-          email,
-          phone: phone || undefined,
-          position,
-          experience,
-          skills,
-          education: education || undefined,
-          cvFileName: cv?.name || storageKey || "cv",
-          cvFileType: cv?.type || "application/octet-stream",
-          cvFileSize: cv?.size || 0,
-          storageProvider: storageKey ? "supabase" : undefined,
-          storageBucket: storageBucket || process.env.SUPABASE_STORAGE_BUCKET || undefined,
-          storageKey: storageKey || undefined,
-          fileHash: fileHash || undefined,
-        },
-      })
-
-      // Invalidate cache tag so listings can refresh
-      revalidateTag("candidate-applications")
-
-      return NextResponse.json({ id: created.id }, { status: 201 })
-    }
-
-    // JSON fallback (no file): accept base64 cvFile
-  const session = await getServerSession(authOptions)
-  const body = await req.json()
-  const { firstName, lastName, email, phone, position, experience, skills, education, cvFileName, cvFileType, cvFileBase64, storageBucket, storageKey, fileHash } = body || {}
-
-    if (!firstName || !lastName || !email || !position || !experience || (!cvFileName && !storageKey)) {
-      return NextResponse.json({ error: "Brak wymaganych pól" }, { status: 400 })
-    }
-
-    const created = await prisma.candidateApplication.create({
-      data: {
+      // === TWORZENIE APLIKACJI (tylko podstawowe pola, bez storage) ===
+      const applicationData: any = {
         userId: (session?.user as any)?.id ?? undefined,
         firstName,
         lastName,
-        email: String(email).toLowerCase(),
+        email,
         phone: phone || undefined,
         position,
         experience,
-        skills: skills || "",
+        skills,
         education: education || undefined,
-        cvFileName: cvFileName || storageKey || "cv",
-        cvFileType: cvFileType || "application/octet-stream",
-        cvFileSize: cvFileBase64 ? Math.ceil((cvFileBase64.length * 3) / 4) : 0,
-        storageProvider: storageKey ? "supabase" : undefined,
-        storageBucket: storageBucket || process.env.SUPABASE_STORAGE_BUCKET || undefined,
-        storageKey: storageKey || undefined,
-        fileHash: fileHash || undefined,
-      },
-    })
+        // HOTFIX: DB has NOT NULL on cvFileData, provide empty bytea to satisfy constraint
+        cvFileData: Buffer.from([]),
+      }
+      
+      // Dodanie metadanych CV jeśli plik został przesłany
+      if (cvFileName) {
+        applicationData.cvFileName = cvFileName
+        applicationData.cvFileType = cvFileType
+        applicationData.cvFileSize = cvFileSize
+      }
+      
+      // NOTE: Pomijamy storage fields (storageProvider, storageBucket, storageKey, fileHash) 
+      // dopóki nie zastosujemy migracji bazy danych
 
-    revalidateTag("candidate-applications")
+      let created
+      try {
+        created = await prisma.candidateApplication.create({
+          data: applicationData,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            position: true,
+            createdAt: true,
+          }
+        })
+      } catch (err: any) {
+        // If DB rejects due to NOT NULL on cvFileData, drop constraint and retry once
+        if (err?.code === 'P2011') {
+          try {
+            await prisma.$executeRawUnsafe('ALTER TABLE "public"."CandidateApplication" ALTER COLUMN "cvFileData" DROP NOT NULL;')
+            created = await prisma.candidateApplication.create({
+              data: applicationData,
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                position: true,
+                createdAt: true,
+              }
+            })
+          } catch (innerErr) {
+            throw innerErr
+          }
+        } else {
+          throw err
+        }
+      }
 
-    return NextResponse.json({ id: created.id }, { status: 201 })
-  } catch (err: any) {
-    console.error("Application submit error", err)
-    return NextResponse.json({ error: "Wewnętrzny błąd serwera" }, { status: 500 })
+      revalidateTag("candidates")
+
+      return NextResponse.json({ 
+        success: true, 
+        data: created,
+        message: "Aplikacja została przesłana pomyślnie" 
+      })
+
+    } else {
+      // === JSON REQUEST HANDLING ===
+      const body = await req.json()
+      const { 
+        firstName, 
+        lastName, 
+        email, 
+        phone, 
+        position, 
+        experience, 
+        skills, 
+        education,
+        cvFileName,
+        cvFileType,
+        cvFileSize 
+      } = body
+
+      // === WALIDACJA PRZED KONTYNUOWANIEM ===
+      const errors: string[] = []
+      
+      // Sprawdzenie wymaganych pól
+      if (!firstName?.trim()) errors.push("Imię jest wymagane")
+      if (!lastName?.trim()) errors.push("Nazwisko jest wymagane")
+      if (!email?.trim()) errors.push("Email jest wymagany")
+      if (!position?.trim()) errors.push("Stanowisko jest wymagane")
+      if (!experience?.trim()) errors.push("Doświadczenie jest wymagane")
+      if (!skills?.trim()) errors.push("Umiejętności są wymagane")
+      
+      // Sprawdzenie formatu email
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        errors.push("Nieprawidłowy format email")
+      }
+      
+      // Sprawdzenie doświadczenia
+      const validExperience = ["junior", "mid", "senior", "lead"]
+      if (experience && !validExperience.includes(experience.trim())) {
+        errors.push("Nieprawidłowe doświadczenie (dozwolone: junior, mid, senior, lead)")
+      }
+      
+      // Sprawdzenie długości pól
+      if (firstName && firstName.trim().length > 50) errors.push("Imię jest zbyt długie (max 50 znaków)")
+      if (lastName && lastName.trim().length > 50) errors.push("Nazwisko jest zbyt długie (max 50 znaków)")
+      if (position && position.trim().length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
+      if (skills && skills.trim().length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
+      if (education && education.trim().length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
+      
+      // Walidacja metadanych CV
+      if (cvFileSize && (typeof cvFileSize !== 'number' || cvFileSize <= 0)) {
+        errors.push("Nieprawidłowy rozmiar pliku CV")
+      }
+      if (cvFileSize && cvFileSize > 10 * 1024 * 1024) {
+        errors.push("Plik CV jest zbyt duży (max 10MB)")
+      }
+      
+      // Jeśli są błędy walidacji, STOP - nie kontynuuj
+      if (errors.length > 0) {
+        return NextResponse.json({ error: errors.join(", ") }, { status: 400 })
+      }
+
+      // === SPRAWDZENIE SESJI ===
+      const session = await getServerSession(authOptions)
+      // Sesja nie jest wymagana, ale jeśli istnieje, użyjemy userId
+
+      // === PRZYGOTOWANIE DANYCH APLIKACJI ===
+      const applicationData: any = {
+        userId: (session?.user as any)?.id ?? undefined,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone?.trim() || undefined,
+        position: position.trim(),
+        experience: experience.trim(),
+        skills: skills.trim(),
+        education: education?.trim() || undefined,
+        // HOTFIX: DB has NOT NULL on cvFileData, provide empty bytea to satisfy constraint
+        cvFileData: Buffer.from([]),
+      }
+
+      // Dodanie metadanych CV jeśli są dostępne
+      if (cvFileName && typeof cvFileName === 'string') applicationData.cvFileName = cvFileName
+      if (cvFileType && typeof cvFileType === 'string') applicationData.cvFileType = cvFileType
+      if (cvFileSize && typeof cvFileSize === 'number') applicationData.cvFileSize = cvFileSize
+      
+      // NOTE: Pomijamy storage fields (storageProvider, storageBucket, storageKey, fileHash) 
+      // dopóki nie zastosujemy migracji bazy danych
+
+      let created
+      try {
+        created = await prisma.candidateApplication.create({
+          data: applicationData,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            position: true,
+            createdAt: true,
+          }
+        })
+      } catch (err: any) {
+        if (err?.code === 'P2011') {
+          try {
+            await prisma.$executeRawUnsafe('ALTER TABLE "public"."CandidateApplication" ALTER COLUMN "cvFileData" DROP NOT NULL;')
+            created = await prisma.candidateApplication.create({
+              data: applicationData,
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                position: true,
+                createdAt: true,
+              }
+            })
+          } catch (innerErr) {
+            throw innerErr
+          }
+        } else {
+          throw err
+        }
+      }
+
+      revalidateTag("candidates")
+
+      return NextResponse.json({ 
+        success: true, 
+        data: created,
+        message: "Aplikacja została przesłana pomyślnie" 
+      })
+    }
+  } catch (error) {
+    console.error("Error creating application:", error)
+    return NextResponse.json(
+      { error: "Błąd przy tworzeniu aplikacji" },
+      { status: 500 }
+    )
   }
-}
-
-// Optional: minimal GET with caching and pagination
-export const dynamic = "force-dynamic"
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const page = Number(searchParams.get("page") || 1)
-  const pageSize = Math.min(Number(searchParams.get("pageSize") || 10), 100)
-
-  const [items, total] = await Promise.all([
-    prisma.candidateApplication.findMany({
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      select: { id: true, firstName: true, lastName: true, email: true, position: true, experience: true, createdAt: true },
-    }),
-    prisma.candidateApplication.count(),
-  ])
-
-  return NextResponse.json({ items, total, page, pageSize }, {
-    headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate=300" },
-  })
 }

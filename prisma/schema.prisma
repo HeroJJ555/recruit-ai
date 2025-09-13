@@ -45,23 +45,26 @@ model CandidateApplication {
   education  String?
 
   // CV file metadata (prefer object storage e.g., Supabase Storage); keep cvFileData optional for legacy
-  cvFileName String
-  cvFileType String
-  cvFileSize Int
+  cvFileName String?
+  cvFileType String?
+  cvFileSize Int?
   cvFileData Bytes?
 
-  // Object storage info
-  storageProvider String?  @default("supabase")
-  storageBucket   String?
-  storageKey      String?
-  fileHash        String?
+
+
+  // NOTE: Object storage info temporarily removed until database migration can be applied
+  // storageProvider String?  @default("supabase")
+  // storageBucket   String?
+  // storageKey      String?
+  // fileHash        String?
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([email])
   @@index([createdAt])
   @@index([position])
-  @@index([storageKey])
+  // @@index([storageKey])  // Commented out until storage fields are migrated
 }
 
 model Account {
