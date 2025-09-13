@@ -42,18 +42,24 @@ model CandidateApplication {
   skills     String // comma-separated or free text
   education  String?
 
-  // CV file metadata and content (for demo/simplicity we store in DB). In production, consider S3/GCS.
+  // CV file metadata (prefer object storage e.g., Supabase Storage); keep cvFileData optional for legacy
   cvFileName String
   cvFileType String
   cvFileSize Int
-  cvFileData Bytes
+  cvFileData Bytes?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Object storage info
+  storageProvider String?  @default("supabase")
+  storageBucket   String?
+  storageKey      String?
+  fileHash        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([email])
   @@index([createdAt])
   @@index([position])
+  @@index([storageKey])
 }
 
 model Account {

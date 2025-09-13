@@ -20,21 +20,26 @@ export async function POST(req: NextRequest) {
       const skills = String(form.get("skills") || "").trim()
       const education = String(form.get("education") || "").trim() || null
       const cv = form.get("cv") as File | null
+      // Optionally accept metadata from prior upload endpoint
+      const storageBucket = String(form.get("storageBucket") || "").trim() || null
+      const storageKey = String(form.get("storageKey") || "").trim() || null
+      const fileHash = String(form.get("fileHash") || "").trim() || null
 
-      if (!firstName || !lastName || !email || !position || !experience || !cv) {
+      if (!firstName || !lastName || !email || !position || !experience || (!cv && !storageKey)) {
         return NextResponse.json({ error: "Brak wymaganych pól" }, { status: 400 })
       }
 
       // Validate file type and size (max 10MB)
       const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
-      if (cv.size > 10 * 1024 * 1024) {
-        return NextResponse.json({ error: "Plik jest zbyt duży (max 10MB)" }, { status: 413 })
-      }
-      if (cv.type && !allowed.includes(cv.type)) {
-        return NextResponse.json({ error: "Niedozwolony format pliku" }, { status: 400 })
+      if (cv) {
+        if (cv.size > 10 * 1024 * 1024) {
+          return NextResponse.json({ error: "Plik jest zbyt duży (max 10MB)" }, { status: 413 })
+        }
+        if (cv.type && !allowed.includes(cv.type)) {
+          return NextResponse.json({ error: "Niedozwolony format pliku" }, { status: 400 })
+        }
       }
 
-      const arrayBuffer = await cv.arrayBuffer()
       const session = await getServerSession(authOptions)
 
       const created = await prisma.candidateApplication.create({
@@ -48,10 +53,13 @@ export async function POST(req: NextRequest) {
           experience,
           skills,
           education: education || undefined,
-          cvFileName: cv.name,
-          cvFileType: cv.type || "application/octet-stream",
-          cvFileSize: cv.size,
-          cvFileData: Buffer.from(arrayBuffer),
+          cvFileName: cv?.name || storageKey || "cv",
+          cvFileType: cv?.type || "application/octet-stream",
+          cvFileSize: cv?.size || 0,
+          storageProvider: storageKey ? "supabase" : undefined,
+          storageBucket: storageBucket || process.env.SUPABASE_STORAGE_BUCKET || undefined,
+          storageKey: storageKey || undefined,
+          fileHash: fileHash || undefined,
         },
       })
 
@@ -64,9 +72,9 @@ export async function POST(req: NextRequest) {
     // JSON fallback (no file): accept base64 cvFile
   const session = await getServerSession(authOptions)
   const body = await req.json()
-    const { firstName, lastName, email, phone, position, experience, skills, education, cvFileName, cvFileType, cvFileBase64 } = body || {}
+  const { firstName, lastName, email, phone, position, experience, skills, education, cvFileName, cvFileType, cvFileBase64, storageBucket, storageKey, fileHash } = body || {}
 
-    if (!firstName || !lastName || !email || !position || !experience || !cvFileName || !cvFileBase64) {
+    if (!firstName || !lastName || !email || !position || !experience || (!cvFileName && !storageKey)) {
       return NextResponse.json({ error: "Brak wymaganych pól" }, { status: 400 })
     }
 
@@ -81,10 +89,13 @@ export async function POST(req: NextRequest) {
         experience,
         skills: skills || "",
         education: education || undefined,
-        cvFileName,
+        cvFileName: cvFileName || storageKey || "cv",
         cvFileType: cvFileType || "application/octet-stream",
-        cvFileSize: Math.ceil((cvFileBase64.length * 3) / 4),
-        cvFileData: Buffer.from(cvFileBase64, "base64"),
+        cvFileSize: cvFileBase64 ? Math.ceil((cvFileBase64.length * 3) / 4) : 0,
+        storageProvider: storageKey ? "supabase" : undefined,
+        storageBucket: storageBucket || process.env.SUPABASE_STORAGE_BUCKET || undefined,
+        storageKey: storageKey || undefined,
+        fileHash: fileHash || undefined,
       },
     })
 
