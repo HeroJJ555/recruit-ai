@@ -3,13 +3,30 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Brain, Users, FileText } from "lucide-react"
+import { Menu, X, Brain, Users, FileText, LogOut, LogIn } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useSession, signIn, signOut } from "next-auth/react"
 
 export function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { data: session } = useSession()
+
+  const initials = (session?.user?.name || "")
+    .split(" ")
+    .filter(Boolean)
+    .map((s: string) => s[0] ?? "")
+    .join("") || "U"
 
   return (
-    <nav className="bg-background border-b border-border sticky top-0 z-50">
+    <nav className="bg-background/80 backdrop-blur border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -20,24 +37,7 @@ export function Navigation() {
             <span className="font-heading font-bold text-xl text-foreground">RecruitAI</span>
           </Link>
 
-        {/*
-          <div className="hidden md:flex items-center space-x-8">
-            <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">
-              Funkcje
-            </Link>
-            <Link href="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">
-              Cennik
-            </Link>
-            <Link href="/about" className="text-muted-foreground hover:text-foreground transition-colors">
-              O nas
-            </Link>
-            <Link href="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
-              Kontakt
-            </Link>
-          </div>
-        */}
-
-          {/* CTA Buttons */}
+          {/* Right side */}
           <div className="hidden md:flex items-center space-x-4">
             <Link href="/candidate">
               <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
@@ -51,6 +51,33 @@ export function Navigation() {
                 <span>Panel Rekrutera</span>
               </Button>
             </Link>
+
+            {/* Auth */}
+            {session?.user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="inline-flex items-center gap-2">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={session.user.image || undefined} alt={session.user.name || "Użytkownik"} />
+                      <AvatarFallback>{initials}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel className="max-w-[220px] truncate">
+                    {session.user.name || session.user.email}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
+                    <LogOut className="mr-2 h-4 w-4" /> Wyloguj
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="ghost" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
+                <LogIn className="mr-2 h-4 w-4" /> Zaloguj
+              </Button>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -61,56 +88,44 @@ export function Navigation() {
           </div>
         </div>
 
-      {/*
+        {/* Mobile menu */}
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
               <Link
-                href="/features"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                href="/candidate"
+                className="text-foreground"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Funkcje
+                <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
+                  <FileText className="h-4 w-4" />
+                  <span>Panel Kandydata</span>
+                </Button>
               </Link>
               <Link
-                href="/pricing"
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                href="/recruiter"
+                className="text-foreground"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Cennik
+                <Button className="w-full flex items-center justify-center space-x-2">
+                  <Users className="h-4 w-4" />
+                  <span>Panel Rekrutera</span>
+                </Button>
               </Link>
-              <Link
-                href="/about"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                O nas
-              </Link>
-              <Link
-                href="/contact"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Kontakt
-              </Link>
-              <div className="flex flex-col space-y-2 pt-4 border-t border-border">
-                <Link href="/candidate" onClick={() => setIsMenuOpen(false)}>
-                  <Button variant="outline" className="w-full flex items-center space-x-2 bg-transparent">
-                    <FileText className="h-4 w-4" />
-                    <span>Panel Kandydata</span>
+              <div className="pt-2 border-t border-border">
+                {session?.user ? (
+                  <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}>
+                    <LogOut className="mr-2 h-4 w-4" /> Wyloguj
                   </Button>
-                </Link>
-                <Link href="/recruiter" onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full flex items-center space-x-2">
-                    <Users className="h-4 w-4" />
-                    <span>Panel Rekrutera</span>
+                ) : (
+                  <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signIn(undefined, { callbackUrl: "/" }) }}>
+                    <LogIn className="mr-2 h-4 w-4" /> Zaloguj
                   </Button>
-                </Link>
+                )}
               </div>
             </div>
           </div>
         )}
-        */}
       </div>
     </nav>
   )
