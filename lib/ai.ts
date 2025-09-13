@@ -1,7 +1,38 @@
+import { Client } from "@gradio/client"
+
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
 function safeJSONParse<T = any>(s: string): T | null {
   try { return JSON.parse(s) } catch { return null }
+}
+
+async function callGradio(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+  try {
+    const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
+    
+    // Combine system and user messages for Gradio format
+    const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
+    const userMessage = messages.find(m => m.role === 'user')?.content || ""
+    
+    const prompt = opts?.json 
+      ? `${userMessage}\n\nPlease respond with valid JSON only.`
+      : userMessage
+
+    const result = await client.predict("/chat", {
+      message: prompt,
+      system_prompt: systemMessage,
+      temperature: 0.2,
+      max_new_tokens: 2048,
+      top_p: 0.9,
+      top_k: 40,
+      penalty: 1.1,
+    })
+
+    const content = Array.isArray(result.data) ? (result.data[0] || '') : String(result.data || '')
+    return content
+  } catch (error) {
+    throw new Error(`Gradio error: ${error}`)
+  }
 }
 
 async function callOllama(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
@@ -44,19 +75,35 @@ async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json
 }
 
 export async function chatJSON(prompt: string) {
-  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || (process.env.OLLAMA_HOST ? 'ollama' : (process.env.OPENAI_API_KEY ? 'openai' : ''))
+  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'gradio' // Default to Gradio (free)
   const messages: ChatMessage[] = [
     { role: 'system', content: 'You are a helpful assistant. Always reply with strict JSON only.' },
     { role: 'user', content: prompt }
   ]
+  
   let content = ''
-  if (provider === 'ollama') {
+  
+  // Try providers in order: Gradio (free) -> Ollama (free local) -> OpenAI (paid) -> Heuristic (fallback)
+  if (provider === 'gradio') {
+    try {
+      content = await callGradio(messages, { json: true })
+    } catch (error) {
+      console.error('Gradio failed, trying Ollama:', error)
+      if (process.env.OLLAMA_HOST) {
+        content = await callOllama(messages, { json: true })
+      } else {
+        throw error
+      }
+    }
+  } else if (provider === 'ollama' && process.env.OLLAMA_HOST) {
     content = await callOllama(messages, { json: true })
-  } else if (provider === 'openai') {
+  } else if (provider === 'openai' && process.env.OPENAI_API_KEY) {
     content = await callOpenAI(messages, { json: true })
   } else {
-    throw new Error('No AI provider configured (set OLLAMA_HOST for free local or OPENAI_API_KEY)')
+    // Fallback to heuristic analysis
+    throw new Error('No AI provider available, falling back to heuristic analysis')
   }
+  
   const json = safeJSONParse(content)
   if (!json) throw new Error('AI did not return JSON')
   return json
