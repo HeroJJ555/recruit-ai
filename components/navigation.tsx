@@ -20,7 +20,7 @@ export function Navigation() {
             <span className="font-heading font-bold text-xl text-foreground">RecruitAI</span>
           </Link>
 
-          {/* Desktop Navigation */}
+        {/*
           <div className="hidden md:flex items-center space-x-8">
             <Link href="/features" className="text-muted-foreground hover:text-foreground transition-colors">
               Funkcje
@@ -35,6 +35,7 @@ export function Navigation() {
               Kontakt
             </Link>
           </div>
+        */}
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center space-x-4">
@@ -60,7 +61,7 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
+      {/*
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
@@ -109,6 +110,7 @@ export function Navigation() {
             </div>
           </div>
         )}
+        */}
       </div>
     </nav>
   )
