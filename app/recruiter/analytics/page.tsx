@@ -3,16 +3,97 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { prisma } from "@/lib/prisma"
 import { Suspense } from "react"
+import { Badge } from "@/components/ui/badge"
 
-async function fetchMetrics() {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/recruiter/analytics/metrics`, { cache: 'no-store' })
-    if (!res.ok) throw new Error('Bad response')
-    return await res.json()
-  } catch (e) {
-    return { jobsTotal: 0, jobsOpen: 0, applicationsTotal: 0, applicationsLast7d: 0, avgAppsPerOpenJob: 0, openRate: 0, trend: { days: [] }, warnings: ['Brak danych (offline lub brak migracji)'] }
+type Metrics = {
+  jobsTotal: number
+  jobsOpen: number
+  applicationsTotal: number
+  applicationsLast7d: number
+  avgAppsPerOpenJob: number
+  openRate: number
+  trend: { days: { date: string; count: number }[] }
+  topJobs: { id: string; title: string; applications: number; status: string }[]
+  statusCounts: { status: string; count: number }[]
+  warnings: string[]
+}
+
+async function getMetrics(): Promise<Metrics> {
+  const warnings: string[] = []
+  const base: Metrics = {
+    jobsTotal: 0,
+    jobsOpen: 0,
+    applicationsTotal: 0,
+    applicationsLast7d: 0,
+    avgAppsPerOpenJob: 0,
+    openRate: 0,
+    trend: { days: [] },
+    topJobs: [],
+    statusCounts: [],
+    warnings
   }
+  const now = new Date()
+  const from7 = new Date(now.getTime() - 7*24*60*60*1000)
+
+  // Guard if prisma client not ready
+  if (!(prisma as any)?.job) {
+    warnings.push('Model Job nie jest dostępny (brak migracji?)')
+    return base
+  }
+  if (!(prisma as any)?.candidateApplication) {
+    warnings.push('Model CandidateApplication nie jest dostępny (brak migracji?)')
+  }
+
+  try {
+    const [jobs, jobsOpen, appsTotal, appsLast7] = await Promise.all([
+      (prisma as any).job.findMany({ select: { id: true, status: true } }).catch((e: any)=>{warnings.push('Pobranie jobs: '+(e.code||e.message)); return []}),
+      (prisma as any).job.count({ where: { status: 'OPEN' } }).catch((e: any)=>{warnings.push('Zliczenie otwartych: '+(e.code||e.message)); return 0}),
+      (prisma as any).candidateApplication?.count().catch((e: any)=>{warnings.push('Zliczenie aplikacji: '+(e.code||e.message)); return 0}) ?? 0,
+      (prisma as any).candidateApplication?.count({ where: { createdAt: { gte: from7 } } }).catch((e: any)=>{warnings.push('Aplikacje 7d: '+(e.code||e.message)); return 0}) ?? 0,
+    ])
+    base.jobsTotal = jobs.length
+    base.jobsOpen = jobsOpen
+    base.applicationsTotal = appsTotal
+    base.applicationsLast7d = appsLast7
+    if (base.jobsOpen > 0) base.avgAppsPerOpenJob = +(base.applicationsTotal / base.jobsOpen).toFixed(2)
+    if (base.jobsTotal > 0) base.openRate = +(base.jobsOpen / base.jobsTotal * 100).toFixed(1)
+
+    // Status counts
+    const statuses = ['DRAFT','OPEN','PAUSED','CLOSED']
+    base.statusCounts = await Promise.all(statuses.map(async s => ({ status: s, count: await (prisma as any).job.count({ where: { status: s } }).catch(()=>0) })))
+
+    // Top jobs by applications
+    if ((prisma as any).candidateApplication) {
+      const appsGrouped = await (prisma as any).candidateApplication.groupBy?.({
+        by: ['jobId'], _count: { jobId: true }, where: { jobId: { not: null } }
+      }).catch(()=>[])
+      const countsMap: Record<string, number> = {}
+      for (const row of appsGrouped) if (row.jobId) countsMap[row.jobId] = row._count.jobId
+      const topIds = Object.entries(countsMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>e[0])
+      if (topIds.length) {
+        const topJobs = await (prisma as any).job.findMany({ where: { id: { in: topIds } }, select: { id:true, title:true, status:true } }).catch(()=>[])
+        base.topJobs = topJobs.map((j: any) => ({ id: j.id, title: j.title, status: j.status, applications: countsMap[j.id] || 0 }))
+        base.topJobs.sort((a,b)=>b.applications - a.applications)
+      }
+    }
+
+    // Trend daily
+    if ((prisma as any).candidateApplication) {
+      const days: { date: string; count: number }[] = []
+      for (let i=6;i>=0;i--) {
+        const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i)
+        const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i+1)
+        const c = await (prisma as any).candidateApplication.count({ where: { createdAt: { gte: dayStart, lt: dayEnd } } }).catch(()=>0)
+        days.push({ date: dayStart.toISOString().slice(0,10), count: c })
+      }
+      base.trend.days = days
+    }
+  } catch (e: any) {
+    warnings.push('Ogólny błąd pobierania: ' + (e.code || e.message))
+  }
+  return base
 }
 
 function TrendMiniChart({ days }: { days: { date: string; count: number }[] }) {
@@ -33,7 +114,7 @@ function TrendMiniChart({ days }: { days: { date: string; count: number }[] }) {
 }
 
 async function MetricsSection() {
-  const data = await fetchMetrics()
+  const data = await getMetrics()
   return (
     <div className="space-y-8">
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -64,6 +145,40 @@ async function MetricsSection() {
                 {data.warnings.map((w: string, i: number) => <p key={i}>⚠ {w}</p>)}
               </div>
             ) : null}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Status ofert</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            {data.statusCounts.map(sc => (
+              <div key={sc.status} className="flex items-center gap-2 border rounded-md px-3 py-2 text-sm">
+                <Badge variant={sc.status === 'OPEN' ? 'default' : sc.status === 'DRAFT' ? 'secondary' : sc.status === 'CLOSED' ? 'destructive' : 'outline'}>{sc.status}</Badge>
+                <span className="font-medium">{sc.count}</span>
+              </div>
+            ))}
+            {!data.statusCounts.length && <p className="text-xs text-muted-foreground">Brak danych statusów.</p>}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Top 5 ofert wg aplikacji</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {data.topJobs.length ? data.topJobs.map(j => (
+              <div key={j.id} className="flex items-center justify-between border rounded-md px-3 py-2 text-sm">
+                <div className="flex flex-col">
+                  <span className="font-medium line-clamp-1">{j.title}</span>
+                  <span className="text-xs text-muted-foreground">{j.status}</span>
+                </div>
+                <div className="text-sm font-semibold">{j.applications}</div>
+              </div>
+            )) : <p className="text-xs text-muted-foreground">Brak aplikacji.</p>}
+          </div>
         </CardContent>
       </Card>
     </div>
