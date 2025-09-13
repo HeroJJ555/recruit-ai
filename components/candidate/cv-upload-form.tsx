@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, FileText, CheckCircle, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { toast } from "sonner"
 
 export function CVUploadForm() {
   const [step, setStep] = useState(1)
@@ -40,11 +41,46 @@ export function CVUploadForm() {
   }
 
   const handleSubmit = async () => {
-    setIsSubmitting(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setSubmitStatus("success")
-    setIsSubmitting(false)
+    try {
+      setIsSubmitting(true)
+
+      // Basic validation
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.position || !formData.experience || !formData.cvFile) {
+        toast.error("Uzupełnij wymagane pola i dodaj CV")
+        setIsSubmitting(false)
+        return
+      }
+
+      const fd = new FormData()
+      fd.set("firstName", formData.firstName)
+      fd.set("lastName", formData.lastName)
+      fd.set("email", formData.email)
+      if (formData.phone) fd.set("phone", formData.phone)
+      fd.set("position", formData.position)
+      fd.set("experience", formData.experience)
+      if (formData.skills) fd.set("skills", formData.skills)
+      if (formData.education) fd.set("education", formData.education)
+      fd.set("cv", formData.cvFile)
+
+      const res = await fetch("/api/candidate/applications", {
+        method: "POST",
+        body: fd,
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || "Nie udało się przesłać zgłoszenia")
+      }
+
+      toast.success("CV przesłane pomyślnie")
+      setSubmitStatus("success")
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e.message || "Wystąpił błąd")
+      setSubmitStatus("error")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const nextStep = () => {
@@ -72,9 +108,9 @@ export function CVUploadForm() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-2xl mx-auto border-2">
       <CardHeader>
-        <CardTitle className="font-heading">Prześlij swoje CV</CardTitle>
+        <CardTitle className="font-heading text-2xl">Prześlij swoje CV</CardTitle>
         <CardDescription>
           Krok {step} z 3 - Wypełnij formularz i prześlij swoje CV, aby znaleźć idealne oferty pracy
         </CardDescription>
@@ -144,7 +180,7 @@ export function CVUploadForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="experience">Doświadczenie zawodowe</Label>
-              <Select onValueChange={(value) => handleInputChange("experience", value)}>
+              <Select value={formData.experience} onValueChange={(value) => handleInputChange("experience", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Wybierz poziom doświadczenia" />
                 </SelectTrigger>
@@ -226,9 +262,11 @@ export function CVUploadForm() {
           </Button>
 
           {step < 3 ? (
-            <Button onClick={nextStep}>Dalej</Button>
+            <Button onClick={nextStep} disabled={step === 1 && (!formData.firstName || !formData.lastName || !formData.email)}>
+              Dalej
+            </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={!formData.cvFile || isSubmitting} className="min-w-[120px]">
+            <Button onClick={handleSubmit} disabled={!formData.cvFile || isSubmitting} className="min-w-[140px]">
               {isSubmitting ? "Przesyłanie..." : "Prześlij CV"}
             </Button>
           )}

@@ -19,11 +19,41 @@ model User {
   // Credentials auth
   passwordHash  String?
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts              Account[]
+  sessions              Session[]
+  candidateApplications CandidateApplication[]
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CandidateApplication {
+  id     String  @id @default(cuid())
+  userId String? // Optional link to authenticated user
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  position   String
+  experience String // junior | mid | senior | lead
+  skills     String // comma-separated or free text
+  education  String?
+
+  // CV file metadata and content (for demo/simplicity we store in DB). In production, consider S3/GCS.
+  cvFileName String
+  cvFileType String
+  cvFileSize Int
+  cvFileData Bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([createdAt])
+  @@index([position])
 }
 
 model Account {
@@ -32,12 +62,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?  @map("refreshToken")
-  access_token      String?  @map("accessToken")
-  expires_at        Int?     @map("expiresAt")
-  token_type        String?  @map("tokenType")
+  refresh_token     String? @map("refreshToken")
+  access_token      String? @map("accessToken")
+  expires_at        Int?    @map("expiresAt")
+  token_type        String? @map("tokenType")
   scope             String?
-  id_token          String?  @map("idToken")
+  id_token          String? @map("idToken")
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
