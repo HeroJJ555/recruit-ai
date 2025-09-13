@@ -64,19 +64,19 @@ export default async function RecruiterCandidatesPage() {
                       <TableHead>Doświadczenie</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Data</TableHead>
-                      <TableHead className="text-right">Akcje</TableHead>
+                      <TableHead>Akcje</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {applications.map((a: AppRow) => (
+                    {applications.map((a: AppRow) => (  
                       <TableRow key={a.id}>
                         <TableCell className="font-medium">{a.firstName} {a.lastName}</TableCell>
                         <TableCell>{a.position}</TableCell>
                         <TableCell className="capitalize">{a.experience}</TableCell>
                         <TableCell>{a.email}</TableCell>
                         <TableCell>{fmtDate(a.createdAt)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <TableCell className="text-left">
+                          <div className="flex items-left justify-start gap-2">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Link href={`/recruiter/candidates/${a.id}`} prefetch={false} aria-label="Profil">
