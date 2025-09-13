@@ -7,22 +7,22 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 
 const jobCreateSchema = z.object({
   title: z.string().min(3),
-  department: z.string().optional(),
-  location: z.string().optional(),
-  employmentType: z.string().optional(),
-  seniority: z.string().optional(),
-  description: z.string().min(10),
-  requirements: z.string().optional(),
-  responsibilities: z.string().optional(),
-  benefits: z.string().optional(),
+  department: z.string().nullish(),
+  location: z.string().nullish(),
+  employmentType: z.string().nullish(),
+  seniority: z.string().nullish(),
+  description: z.string().min(5), // Reduced from 10 to 5
+  requirements: z.string().nullish(),
+  responsibilities: z.string().nullish(),
+  benefits: z.string().nullish(),
   openings: z.number().int().min(1).max(999).default(1),
   status: z.enum(["DRAFT","OPEN","PAUSED","CLOSED"]).optional(),
   publish: z.boolean().optional(),
   goldenCandidate: z.object({
-    role: z.string().optional(),
-    level: z.string().optional(),
-    skills: z.string().optional(),
-    summary: z.string().optional(),
+    role: z.string().nullish(),
+    level: z.string().nullish(),
+    skills: z.string().nullish(),
+    summary: z.string().nullish(),
   }).optional(),
 })
 
@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Model Job nie jest dostępny – uruchom migrację: npx prisma migrate dev && npx prisma generate" }, { status: 500 })
     }
     const json = await req.json()
+    console.log("POST data received:", JSON.stringify(json, null, 2))
+    
     const parsed = jobCreateSchema.parse(json)
 
     // Basic slug creation
@@ -108,7 +110,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
+    console.error("POST error:", e)
     if (e.name === "ZodError") {
+      console.error("Zod validation errors:", e.errors)
       return NextResponse.json({ error: e.errors }, { status: 400 })
     }
     console.error("Job create error", e)
