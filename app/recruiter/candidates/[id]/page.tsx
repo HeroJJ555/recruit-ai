@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { FileDown, Mail, Phone, Briefcase, Award, GraduationCap, FileText, Calendar } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { CvAnalysis } from "@/components/recruiter/cv-analysis"
 
 interface CandidateDetailPageProps { params: { id: string } }
 
@@ -71,6 +72,9 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-6">
+              <CvAnalysis appId={candidate.id} />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="border-muted">
                 <CardHeader>

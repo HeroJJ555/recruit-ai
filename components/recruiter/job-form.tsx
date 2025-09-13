@@ -32,6 +32,12 @@ export function JobForm({ onCreated }: JobFormProps) {
         requirements: formData.get("requirements")?.toString() || undefined,
         benefits: formData.get("benefits")?.toString() || undefined,
         openings: Number(formData.get("openings") || 1),
+        goldenCandidate: {
+          role: formData.get("goldenRole")?.toString() || undefined,
+          level: formData.get("goldenLevel")?.toString() || undefined,
+          skills: formData.get("goldenSkills")?.toString() || undefined,
+          summary: formData.get("goldenSummary")?.toString() || undefined,
+        },
         publish,
       }
       const res = await fetch("/api/recruiter/jobs", { method: "POST", body: JSON.stringify(payload) })
@@ -108,6 +114,28 @@ export function JobForm({ onCreated }: JobFormProps) {
               <Textarea id="benefits" name="benefits" rows={4} placeholder="Dodatki, pakiety, kultura, itd." />
             </div>
           </fieldset>
+
+            <fieldset className="space-y-6">
+              <legend className="font-semibold text-sm tracking-wide text-muted-foreground">Złoty Kandydat (Idealny profil)</legend>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-3">
+                  <Label htmlFor="goldenRole">Rola</Label>
+                  <Input id="goldenRole" name="goldenRole" placeholder="np. Senior Frontend Developer" />
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="goldenLevel">Poziom</Label>
+                  <Input id="goldenLevel" name="goldenLevel" placeholder="junior / mid / senior / lead" />
+                </div>
+                <div className="space-y-3 lg:col-span-1 sm:col-span-2">
+                  <Label htmlFor="goldenSkills">Kluczowe umiejętności</Label>
+                  <Input id="goldenSkills" name="goldenSkills" placeholder="np. React, TypeScript, Node.js" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Label htmlFor="goldenSummary">Krótki opis idealnego kandydata</Label>
+                <Textarea id="goldenSummary" name="goldenSummary" rows={3} placeholder="Czego dokładnie szukamy?" />
+              </div>
+            </fieldset>
 
             <div className="flex items-center gap-3 pt-2">
               <Switch id="publish" checked={publish} onCheckedChange={setPublish} />

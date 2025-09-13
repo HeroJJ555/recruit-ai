@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { z } from "zod"
+import { supabaseAdmin } from "@/lib/supabase-admin"
 
 const jobCreateSchema = z.object({
   title: z.string().min(3),
@@ -17,6 +18,12 @@ const jobCreateSchema = z.object({
   openings: z.number().int().min(1).max(999).default(1),
   status: z.enum(["DRAFT","OPEN","PAUSED","CLOSED"]).optional(),
   publish: z.boolean().optional(),
+  goldenCandidate: z.object({
+    role: z.string().optional(),
+    level: z.string().optional(),
+    skills: z.string().optional(),
+    summary: z.string().optional(),
+  }).optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -77,9 +84,26 @@ export async function POST(req: NextRequest) {
         status: parsed.status ?? (parsed.publish ? "OPEN" : "DRAFT"),
         publishedAt: parsed.publish ? new Date() : null,
         ownerId: (session.user as any)?.id ?? null,
+        // Try to store goldenCandidate JSON directly (requires migrated schema)
+        ...(parsed.goldenCandidate ? { /* @ts-ignore */ goldenCandidate: parsed.goldenCandidate } : {}),
       },
       select: { id:true, slug:true },
     })
+
+    // Try to persist goldenCandidate profile
+    const golden = parsed.goldenCandidate
+    if (golden && (golden.role || golden.level || golden.skills || golden.summary)) {
+      // Attempt DB JSON field first (if exists in migrated schema)
+      try {
+        await jobModel.update({ where: { id: created.id }, data: { /* @ts-ignore */ goldenCandidate: golden } })
+      } catch {
+        // Fallback to object storage
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'cvs'
+        const key = `jobs/${created.id}/goldenCandidate.json`
+        const blob = new Blob([JSON.stringify(golden, null, 2)], { type: 'application/json' })
+        await supabaseAdmin.storage.from(bucket).upload(key, blob, { upsert: true, contentType: 'application/json' })
+      }
+    }
 
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
