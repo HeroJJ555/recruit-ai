@@ -1,10 +1,10 @@
 import { Badge } from "@/components/ui/badge"
 
 const map: Record<string, { label: string; variant?: string }> = {
-  DRAFT: { label: "Szkic", variant: "secondary" },
-  OPEN: { label: "Otwarte", variant: "default" },
-  PAUSED: { label: "Wstrzymane", variant: "outline" },
-  CLOSED: { label: "Zamknięte", variant: "destructive" },
+  DRAFT: { label: "DRAFT", variant: "secondary" },
+  OPEN: { label: "OPEN", variant: "default" },
+  PAUSED: { label: "PAUSED", variant: "outline" },
+  CLOSED: { label: "CLOSED", variant: "destructive" },
 }
 
 export function JobStatusBadge({ status }: { status: string }) {

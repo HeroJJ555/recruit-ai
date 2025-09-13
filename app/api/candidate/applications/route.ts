@@ -219,7 +219,8 @@ export async function POST(req: NextRequest) {
         lastName, 
         email, 
         phone, 
-        position, 
+        jobId, // New field for job selection
+        position, // Keep for backward compatibility
         experience, 
         skills, 
         education,
@@ -234,8 +235,8 @@ export async function POST(req: NextRequest) {
       // Sprawdzenie wymaganych pól
       if (!firstName?.trim()) errors.push("Imię jest wymagane")
       if (!lastName?.trim()) errors.push("Nazwisko jest wymagane")
-      if (!email?.trim()) errors.push("Email jest wymagany")
-      if (!position?.trim()) errors.push("Stanowisko jest wymagane")
+      if (!email?.trim()) errors.push("Email jest wymagane")
+      if (!jobId?.trim() && !position?.trim()) errors.push("Oferta pracy lub stanowisko jest wymagane")
       if (!experience?.trim()) errors.push("Doświadczenie jest wymagane")
       if (!skills?.trim()) errors.push("Umiejętności są wymagane")
       
@@ -281,7 +282,8 @@ export async function POST(req: NextRequest) {
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone?.trim() || undefined,
-        position: position.trim(),
+        jobId: jobId?.trim() || undefined, // Link to specific job
+        position: position?.trim() || "", // Keep for backward compatibility
         experience: experience.trim(),
         skills: skills.trim(),
         education: education?.trim() || undefined,

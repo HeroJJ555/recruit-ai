@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
   const created = await jobModel.create({
       data: {
         title: parsed.title,
+        slug: slug,
         department: parsed.department,
         location: parsed.location,
         employmentType: parsed.employmentType,

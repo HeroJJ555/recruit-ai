@@ -2,25 +2,36 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, FileText, CheckCircle, AlertCircle } from "lucide-react"
+import { Upload, FileText, CheckCircle, AlertCircle, Briefcase } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "sonner"
 
+interface Job {
+  id: string
+  title: string
+  department?: string
+  location?: string
+  employmentType?: string
+  seniority?: string
+}
+
 export function CVUploadForm() {
   const [step, setStep] = useState(1)
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [loadingJobs, setLoadingJobs] = useState(true)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    position: "",
+    jobId: "", // Changed from position to jobId
     experience: "",
     skills: "",
     education: "",
@@ -28,6 +39,28 @@ export function CVUploadForm() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
+
+  // Fetch available jobs on component mount
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const response = await fetch('/api/jobs')
+        if (response.ok) {
+          const jobsData = await response.json()
+          setJobs(jobsData)
+        } else {
+          toast.error("Nie udało się pobrać ofert pracy")
+        }
+      } catch (error) {
+        console.error("Error fetching jobs:", error)
+        toast.error("Błąd podczas pobierania ofert pracy")
+      } finally {
+        setLoadingJobs(false)
+      }
+    }
+
+    fetchJobs()
+  }, [])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -51,7 +84,7 @@ export function CVUploadForm() {
       if (!formData.firstName.trim()) errors.push("Imię jest wymagane")
       if (!formData.lastName.trim()) errors.push("Nazwisko jest wymagane")
       if (!formData.email.trim()) errors.push("Email jest wymagany")
-      if (!formData.position.trim()) errors.push("Stanowisko jest wymagane")
+      if (!formData.jobId.trim()) errors.push("Oferta pracy jest wymagana")
       if (!formData.experience.trim()) errors.push("Doświadczenie jest wymagane")
       if (!formData.skills.trim()) errors.push("Umiejętności są wymagane")
       if (!formData.cvFile) errors.push("Plik CV jest wymagany")
@@ -70,7 +103,6 @@ export function CVUploadForm() {
       // Sprawdzenie długości pól
       if (formData.firstName.trim().length > 50) errors.push("Imię jest zbyt długie (max 50 znaków)")
       if (formData.lastName.trim().length > 50) errors.push("Nazwisko jest zbyt długie (max 50 znaków)")
-      if (formData.position.trim().length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
       if (formData.skills.trim().length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
       if (formData.education.trim().length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
       
@@ -105,12 +137,14 @@ export function CVUploadForm() {
       const name = formData.cvFile.name
       const type = formData.cvFile.type || "application/octet-stream"
       const size = formData.cvFile.size
+      const selectedJob = jobs.find(job => job.id === formData.jobId)
       const applicationData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone || undefined,
-        position: formData.position,
+        jobId: formData.jobId,
+        position: selectedJob?.title || "", // Keep position for backward compatibility
         experience: formData.experience,
         skills: formData.skills,
         education: formData.education || undefined,
@@ -184,7 +218,7 @@ export function CVUploadForm() {
   const validateStep2 = (): boolean => {
     const errors: string[] = []
     
-    if (!formData.position.trim()) errors.push("Stanowisko jest wymagane")
+    if (!formData.jobId.trim()) errors.push("Oferta pracy jest wymagana")
     if (!formData.experience.trim()) errors.push("Doświadczenie jest wymagane")
     if (!formData.skills.trim()) errors.push("Umiejętności są wymagane")
     
@@ -195,7 +229,6 @@ export function CVUploadForm() {
     }
     
     // Sprawdzenie długości pól
-    if (formData.position.trim().length > 100) errors.push("Stanowisko jest zbyt długie (max 100 znaków)")
     if (formData.skills.trim().length > 500) errors.push("Umiejętności są zbyt długie (max 500 znaków)")
     if (formData.education.trim().length > 200) errors.push("Wykształcenie jest zbyt długie (max 200 znaków)")
     
@@ -325,13 +358,38 @@ export function CVUploadForm() {
           <div className="space-y-4">
             <h3 className="font-heading font-semibold text-lg">Doświadczenie zawodowe</h3>
             <div className="space-y-2">
-              <Label htmlFor="position">Pożądane stanowisko</Label>
-              <Input
-                id="position"
-                value={formData.position}
-                onChange={(e) => handleInputChange("position", e.target.value)}
-                placeholder="np. Frontend Developer, Marketing Manager"
-              />
+              <Label htmlFor="jobId">Wybierz ofertę pracy</Label>
+              {loadingJobs ? (
+                <div className="flex items-center space-x-2 p-3 border rounded-md">
+                  <Briefcase className="h-4 w-4 animate-pulse" />
+                  <span className="text-sm text-muted-foreground">Ładowanie ofert...</span>
+                </div>
+              ) : jobs.length === 0 ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Brak dostępnych ofert pracy. Skontaktuj się z rekruterem.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Select value={formData.jobId} onValueChange={(value) => handleInputChange("jobId", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Wybierz ofertę pracy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{job.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {[job.department, job.location, job.seniority].filter(Boolean).join(" • ")}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="experience">Doświadczenie zawodowe</Label>
