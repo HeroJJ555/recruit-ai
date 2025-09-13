@@ -51,20 +51,35 @@ export function CVUploadForm() {
         return
       }
 
-      const fd = new FormData()
-      fd.set("firstName", formData.firstName)
-      fd.set("lastName", formData.lastName)
-      fd.set("email", formData.email)
-      if (formData.phone) fd.set("phone", formData.phone)
-      fd.set("position", formData.position)
-      fd.set("experience", formData.experience)
-      if (formData.skills) fd.set("skills", formData.skills)
-      if (formData.education) fd.set("education", formData.education)
-      fd.set("cv", formData.cvFile)
+      // 1) Upload CV to Supabase Storage
+      const uploadFd = new FormData()
+      uploadFd.set("cv", formData.cvFile)
+      const uploadRes = await fetch("/api/candidate/uploads", { method: "POST", body: uploadFd })
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => ({}))
+        throw new Error(data?.error || "Nie udało się przesłać pliku CV")
+      }
+      const { bucket, key, hash, size, type, name } = await uploadRes.json()
 
+      // 2) Create application with metadata only (no raw file)
       const res = await fetch("/api/candidate/applications", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          position: formData.position,
+          experience: formData.experience,
+          skills: formData.skills,
+          education: formData.education || undefined,
+          storageBucket: bucket,
+          storageKey: key,
+          fileHash: hash,
+          cvFileName: name,
+          cvFileType: type,
+        }),
       })
 
       if (!res.ok) {
