@@ -2,10 +2,12 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Star, MapPin, Calendar, Eye, FileDown } from "lucide-react"
+import { Star, Calendar, Eye, FileDown } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import { pl } from "date-fns/locale"
 import { useEffect, useState } from "react"
@@ -13,6 +15,7 @@ import { useEffect, useState } from "react"
 export function CandidateList() {
   const [candidates, setCandidates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     async function loadCandidates() {
@@ -37,18 +40,12 @@ export function CandidateList() {
     return "text-red-600"
   }
 
-  const getStatusColor = (status: string | null | undefined) => {
-    switch (status) {
-      case "Nowy":
-        return "bg-blue-100 text-blue-800"
-      case "W trakcie":
-        return "bg-yellow-100 text-yellow-800"
-      case "Rozmowa":
-        return "bg-green-100 text-green-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
+  const getExpLabel = (exp?: string | null) => ({
+    junior: "Junior",
+    mid: "Mid",
+    senior: "Senior",
+    lead: "Lead",
+  } as any)[(exp || "").toLowerCase()] || "-"
 
   return (
     <Card>
@@ -82,9 +79,10 @@ export function CandidateList() {
                 return (
                   <div
                     key={candidate.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    onClick={() => router.push(`/recruiter/candidates/${candidate.id}`)}
+                    className="group flex items-center justify-between p-4 border rounded-lg hover:bg-accent/40 transition-colors cursor-pointer"
                   >
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-4 shrink-0">
                       <Avatar>
                         <AvatarFallback>
                           {name
@@ -94,22 +92,17 @@ export function CandidateList() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                           <h4 className="font-semibold">{name || "Brak imienia"}</h4>
-                          <Badge variant="secondary" className={getStatusColor(undefined)}>
-                            {"Nowy"}
-                          </Badge>
+                          <Badge variant="outline">{getExpLabel(candidate.experience)}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{candidate.position ?? "-"}</p>
-                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>{candidate.email ?? "-"}</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
+                        <div className="text-sm text-muted-foreground">{candidate.position ?? "-"}</div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             <span>{appliedDate}</span>
                           </div>
+                          <div className="truncate max-w-[220px]" title={candidate.email}>{candidate.email ?? "-"}</div>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">
                           {skills.slice(0, 3).map((skill: string) => (
@@ -120,7 +113,7 @@ export function CandidateList() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-4 shrink-0">
                       <div className="text-center">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-500" />
@@ -128,22 +121,41 @@ export function CandidateList() {
                         </div>
                         <p className="text-xs text-muted-foreground">Dopasowanie AI</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Link href={`/recruiter/candidates/${candidate.id}`}>
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-4 w-4 mr-2" />
-                            Zobacz profil
-                          </Button>
-                        </Link>
-                        {candidate.cvFileName ? (
-                          <Link href={`/api/candidate/applications/${candidate.id}/cv`} prefetch={false}>
-                            <Button variant="secondary" size="sm">
-                              <FileDown className="h-4 w-4 mr-2" />
-                              CV
-                            </Button>
-                          </Link>
-                        ) : null}
-                      </div>
+                      <TooltipProvider>
+                        <div className="flex items-center gap-1 shrink-0 min-w-[84px] justify-end">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Link href={`/recruiter/candidates/${candidate.id}`} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label="Profil">
+                                <Button variant="secondary" size="icon" className="rounded-full">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            </TooltipTrigger>
+                            <TooltipContent>Profil</TooltipContent>
+                          </Tooltip>
+                          {candidate.cvFileName ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Link href={`/api/candidate/applications/${candidate.id}/cv`} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label="Pobierz CV">
+                                  <Button variant="secondary" size="icon" className="rounded-full">
+                                    <FileDown className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                              </TooltipTrigger>
+                              <TooltipContent>Pobierz CV</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon" className="rounded-full" disabled onClick={(e) => e.stopPropagation()} aria-label="Brak CV">
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Brak CV</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TooltipProvider>
                     </div>
                   </div>
                 )

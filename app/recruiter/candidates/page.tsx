@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Eye, FileDown } from "lucide-react"
 import Link from "next/link"
 
 function fmtDate(date: Date) {
@@ -62,7 +64,7 @@ export default async function RecruiterCandidatesPage() {
                       <TableHead>Doświadczenie</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Data</TableHead>
-                      <TableHead className="text-right">CV</TableHead>
+                      <TableHead className="text-right">Akcje</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -74,7 +76,39 @@ export default async function RecruiterCandidatesPage() {
                         <TableCell>{a.email}</TableCell>
                         <TableCell>{fmtDate(a.createdAt)}</TableCell>
                         <TableCell className="text-right">
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <div className="flex items-center justify-end gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Link href={`/recruiter/candidates/${a.id}`} prefetch={false} aria-label="Profil">
+                                  <Button size="icon" variant="secondary" className="rounded-full">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                              </TooltipTrigger>
+                              <TooltipContent>Profil</TooltipContent>
+                            </Tooltip>
+                            {a.cvFileName ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Link href={`/api/candidate/applications/${a.id}/cv`} prefetch={false} aria-label="Pobierz CV">
+                                    <Button size="icon" variant="secondary" className="rounded-full">
+                                      <FileDown className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                </TooltipTrigger>
+                                <TooltipContent>Pobierz CV</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="icon" variant="outline" className="rounded-full" disabled aria-label="Brak CV">
+                                    <FileDown className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Brak CV</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
