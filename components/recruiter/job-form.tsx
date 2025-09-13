@@ -28,24 +28,32 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
     setLoading(true)
     setError(null)
     try {
+      const getFieldValue = (field: string) => {
+        const value = formData.get(field)?.toString()?.trim()
+        return value && value.length > 0 ? value : null
+      }
+
       const payload = {
         title: formData.get("title")?.toString() || "",
-        department: formData.get("department")?.toString() || undefined,
-        location: formData.get("location")?.toString() || undefined,
-        employmentType: formData.get("employmentType")?.toString() || undefined,
-        seniority: formData.get("seniority")?.toString() || undefined,
+        department: getFieldValue("department"),
+        location: getFieldValue("location"),
+        employmentType: getFieldValue("employmentType"),
+        seniority: getFieldValue("seniority"),
         description: formData.get("description")?.toString() || "",
-        requirements: formData.get("requirements")?.toString() || undefined,
-        benefits: formData.get("benefits")?.toString() || undefined,
+        requirements: getFieldValue("requirements"),
+        responsibilities: getFieldValue("responsibilities"),
+        benefits: getFieldValue("benefits"),
         openings: Number(formData.get("openings") || 1),
         goldenCandidate: {
-          role: formData.get("goldenRole")?.toString() || undefined,
-          level: formData.get("goldenLevel")?.toString() || undefined,
-          skills: formData.get("goldenSkills")?.toString() || undefined,
-          summary: formData.get("goldenSummary")?.toString() || undefined,
+          role: getFieldValue("goldenRole"),
+          level: getFieldValue("goldenLevel"),
+          skills: getFieldValue("goldenSkills"),
+          summary: getFieldValue("goldenSummary"),
         },
         publish,
       }
+
+      console.log("Sending payload:", JSON.stringify(payload, null, 2))
 
       const url = editMode ? `/api/recruiter/jobs/${initialData.id}` : "/api/recruiter/jobs"
       const method = editMode ? "PATCH" : "POST"
