@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Brain, LogOut, LogIn, UserPlus } from "lucide-react"
+import { Menu, X, Brain, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -55,6 +55,14 @@ export function Navigation() {
                     {session.user.name || session.user.email}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/recruiter">
+                      <span className="inline-flex items-center">
+                        <LayoutDashboard className="mr-2 h-4 w-4" /> Panel
+                      </span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
                     <LogOut className="mr-2 h-4 w-4" /> Wyloguj
                   </DropdownMenuItem>
@@ -88,7 +96,7 @@ export function Navigation() {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
-              {!session?.user && (
+              {!session?.user ? (
                 <>
                   <Link href="/auth/signin" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
                     <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
@@ -100,6 +108,15 @@ export function Navigation() {
                     <Button className="w-full flex items-center justify-center space-x-2">
                       <UserPlus className="h-4 w-4" />
                       <span>Zarejestruj</span>
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/recruiter" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                    <Button className="w-full flex items-center justify-center space-x-2">
+                      <LayoutDashboard className="h-4 w-4" />
+                      <span>Panel</span>
                     </Button>
                   </Link>
                 </>
