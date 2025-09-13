@@ -8,6 +8,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Use a direct (non-pooled) connection for migrations/introspection (bypasses PgBouncer on Supabase)
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

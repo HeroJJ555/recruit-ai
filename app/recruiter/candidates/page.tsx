@@ -27,11 +27,11 @@ export default async function RecruiterCandidatesPage() {
       position: true,
       experience: true,
       createdAt: true,
-      storageBucket: true,
-      storageKey: true,
       cvFileName: true,
     },
   })
+
+  type AppRow = typeof applications[number]
 
   return (
     <div className="flex h-screen bg-background">
@@ -65,7 +65,7 @@ export default async function RecruiterCandidatesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {applications.map((a) => (
+                    {applications.map((a: AppRow) => (
                       <TableRow key={a.id}>
                         <TableCell className="font-medium">{a.firstName} {a.lastName}</TableCell>
                         <TableCell>{a.position}</TableCell>
@@ -73,13 +73,7 @@ export default async function RecruiterCandidatesPage() {
                         <TableCell>{a.email}</TableCell>
                         <TableCell>{fmtDate(a.createdAt)}</TableCell>
                         <TableCell className="text-right">
-                          {a.storageKey ? (
-                            <Link href={`/api/candidate/applications/${a.id}/cv`}>
-                              <Button variant="outline" size="sm">Pobierz CV</Button>
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">brak pliku</span>
-                          )}
+                          <span className="text-xs text-muted-foreground">—</span>
                         </TableCell>
                       </TableRow>
                     ))}
