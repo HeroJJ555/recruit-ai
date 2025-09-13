@@ -1,0 +1,21 @@
+import { Sidebar } from "@/components/recruiter/sidebar"
+import { getServerSession } from "next-auth"
+import { redirect } from "next/navigation"
+import { authOptions } from "@/lib/auth"
+
+export default async function CalendarPage() {
+  const session = await getServerSession(authOptions)
+  if (!session) redirect("/auth/signin")
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar className="w-64 flex-shrink-0" />
+      <main className="flex-1 overflow-auto p-6 space-y-6">
+        <div>
+          <h1 className="font-heading font-bold text-2xl mb-1">Kalendarz</h1>
+          <p className="text-muted-foreground text-sm">(TODO) Planowane rozmowy i wydarzenia rekrutacyjne.</p>
+        </div>
+        <div className="border rounded-lg p-8 text-center text-muted-foreground text-sm">Widok kalendarza w przygotowaniu.</div>
+      </main>
+    </div>
+  )
+}
