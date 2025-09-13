@@ -197,6 +197,14 @@ export async function POST(req: NextRequest) {
 
       revalidateTag("candidates")
 
+      // Trigger CV analysis in background if CV uploaded
+      if (created.cvFileName) {
+        // Schedule background analysis - fire and forget
+        fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/candidate/applications/${created.id}/analyze`, {
+          method: 'GET',
+        }).catch(() => {}) // Silent fail - analysis can be triggered manually later
+      }
+
       return NextResponse.json({ 
         success: true, 
         data: created,
@@ -326,6 +334,14 @@ export async function POST(req: NextRequest) {
       }
 
       revalidateTag("candidates")
+
+      // Trigger CV analysis in background if CV metadata present
+      if (created.id && cvFileName) {
+        // Schedule background analysis - fire and forget
+        fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/candidate/applications/${created.id}/analyze`, {
+          method: 'GET',
+        }).catch(() => {}) // Silent fail - analysis can be triggered manually later
+      }
 
       return NextResponse.json({ 
         success: true, 

@@ -17,6 +17,12 @@ const jobUpdateSchema = z.object({
   openings: z.number().int().min(1).max(999).optional(),
   status: z.enum(["DRAFT","OPEN","PAUSED","CLOSED"]).optional(),
   publish: z.boolean().optional(),
+  goldenCandidate: z.object({
+    role: z.string().optional(),
+    level: z.string().optional(),
+    skills: z.string().optional(),
+    summary: z.string().optional(),
+  }).optional(),
 })
 
 async function ensureAuth() {

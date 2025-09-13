@@ -89,6 +89,8 @@ model Job {
   requirements     String?
   responsibilities String?
   benefits         String?
+  // Ideal candidate profile for compatibility scoring
+  goldenCandidate  Json?
   status           JobStatus              @default(DRAFT)
   openings         Int                    @default(1)
   publishedAt      DateTime?
