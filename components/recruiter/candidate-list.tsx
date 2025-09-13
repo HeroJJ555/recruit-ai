@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Star, MapPin, Calendar, Eye } from "lucide-react"
+import { Star, MapPin, Calendar, Eye, FileDown } from "lucide-react"
+import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { pl } from "date-fns/locale"
 import { useEffect, useState } from "react"
@@ -127,10 +128,22 @@ export function CandidateList() {
                         </div>
                         <p className="text-xs text-muted-foreground">Dopasowanie AI</p>
                       </div>
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4 mr-2" />
-                        Zobacz profil
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/recruiter/candidates/${candidate.id}`}>
+                          <Button variant="outline" size="sm">
+                            <Eye className="h-4 w-4 mr-2" />
+                            Zobacz profil
+                          </Button>
+                        </Link>
+                        {candidate.cvFileName ? (
+                          <Link href={`/api/candidate/applications/${candidate.id}/cv`} prefetch={false}>
+                            <Button variant="secondary" size="sm">
+                              <FileDown className="h-4 w-4 mr-2" />
+                              CV
+                            </Button>
+                          </Link>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 )

@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         email: true,
         position: true,
         skills: true,
+        cvFileName: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },

@@ -98,27 +98,13 @@ export function CVUploadForm() {
         return
       }
 
-      // 1) First upload CV to Supabase Storage
+      // 1) Create application first (we can derive metadata locally from file)
       if (!formData.cvFile) {
         throw new Error("Brak pliku CV do przesłania")
       }
-      
-      const uploadFd = new FormData()
-      uploadFd.set("cv", formData.cvFile)
-      
-      const uploadRes = await fetch("/api/candidate/uploads", { 
-        method: "POST", 
-        body: uploadFd 
-      })
-      
-      if (!uploadRes.ok) {
-        const data = await uploadRes.json().catch(() => ({}))
-        throw new Error(data?.error || "Nie udało się przesłać pliku CV")
-      }
-      
-      const { bucket, key, hash, size, type, name } = await uploadRes.json()
-
-      // 2) Create application with basic metadata only (no storage fields until DB migration)
+      const name = formData.cvFile.name
+      const type = formData.cvFile.type || "application/octet-stream"
+      const size = formData.cvFile.size
       const applicationData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -131,10 +117,6 @@ export function CVUploadForm() {
         cvFileName: name,
         cvFileType: type,
         cvFileSize: size,
-        // NOTE: Temporarily omitting storage fields until DB migration is complete
-        // storageBucket: bucket,
-        // storageKey: key,
-        // fileHash: hash,
       }
 
       const res = await fetch("/api/candidate/applications", {
@@ -146,6 +128,22 @@ export function CVUploadForm() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error || "Nie udało się przesłać zgłoszenia")
+      }
+      const created = await res.json()
+      const applicationId = created?.data?.id as string | undefined
+      if (!applicationId) {
+        throw new Error("Brak ID utworzonej aplikacji")
+      }
+
+      // 2) Upload CV to canonical path applications/<applicationId>/<filename>
+      const uploadFd = new FormData()
+      uploadFd.set("cv", formData.cvFile)
+      uploadFd.set("applicationId", applicationId)
+
+      const uploadRes = await fetch("/api/candidate/uploads", { method: "POST", body: uploadFd })
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => ({}))
+        throw new Error(data?.error || "Nie udało się przesłać pliku CV")
       }
 
       toast.success("CV przesłane pomyślnie")

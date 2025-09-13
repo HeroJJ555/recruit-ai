@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
   try {
     const form = await req.formData()
     const file = form.get("cv") as File | null
-    const applicationId = String(form.get("applicationId") || "")
-    if (!file) return NextResponse.json({ error: "Brak pliku" }, { status: 400 })
+  const applicationId = String(form.get("applicationId") || "")
+  if (!file) return NextResponse.json({ error: "Brak pliku" }, { status: 400 })
 
     const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
     if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "Plik jest zbyt duży (max 10MB)" }, { status: 413 })
@@ -23,7 +23,10 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop() || "pdf"
     const session = await getServerSession(authOptions)
     const userId = (session?.user as any)?.id || "anon"
-    const key = `applications/${userId}/${applicationId || crypto.randomUUID()}-${Date.now()}.${ext}`
+    // Jeśli mamy applicationId, używamy deterministycznego klucza; w przeciwnym razie zachowujemy dotychczasowy schemat
+    const key = applicationId
+      ? `applications/${applicationId}/${file.name}`
+      : `applications/${userId}/${crypto.randomUUID()}-${Date.now()}.${ext}`
 
     const { error: uploadError } = await supabaseAdmin.storage.from(bucket).upload(key, buf, {
       contentType: file.type || "application/octet-stream",
