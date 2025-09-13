@@ -2,11 +2,7 @@ import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { CVUploadForm } from "@/components/candidate/cv-upload-form"
 import { AITips } from "@/components/candidate/ai-tips"
-import { ApplicationStatus } from "@/components/candidate/application-status"
-import { JobRecommendations } from "@/components/candidate/job-recommendations"
-import { ProfileCompletion } from "@/components/candidate/profile-completion"
-import { FileText, Brain, Briefcase, User } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FileText, Brain } from "lucide-react"
 
 export default function CandidatePage() {
   return (
@@ -27,75 +23,39 @@ export default function CandidatePage() {
             </p>
           </div>
 
-          {/* Tabbed Interface */}
-          <Tabs defaultValue="upload" className="space-y-8">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="upload" className="flex items-center space-x-2">
-                <FileText className="h-4 w-4" />
-                <span>Prześlij CV</span>
-              </TabsTrigger>
-              <TabsTrigger value="profile" className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
-                <span>Profil</span>
-              </TabsTrigger>
-              <TabsTrigger value="jobs" className="flex items-center space-x-2">
-                <Briefcase className="h-4 w-4" />
-                <span>Oferty</span>
-              </TabsTrigger>
-              <TabsTrigger value="applications" className="flex items-center space-x-2">
-                <Brain className="h-4 w-4" />
-                <span>Aplikacje</span>
-              </TabsTrigger>
-            </TabsList>
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Main Form */}
+            <div className="lg:col-span-2">
+              <CVUploadForm />
+            </div>
 
-            <TabsContent value="upload" className="space-y-8">
-              <div className="grid lg:grid-cols-3 gap-8">
-                {/* Main Form */}
-                <div className="lg:col-span-2">
-                  <CVUploadForm />
+            {/* Sidebar */}
+            <div className="space-y-6">
+              <AITips />
+
+              {/* Stats Card */}
+              <div className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-lg p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Brain className="h-8 w-8 text-primary" />
+                  <h3 className="font-heading font-semibold text-lg">Moc AI w liczbach</h3>
                 </div>
-
-                {/* Sidebar */}
-                <div className="space-y-6">
-                  <AITips />
-
-                  {/* Stats Card */}
-                  <div className="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-lg p-6">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <Brain className="h-8 w-8 text-primary" />
-                      <h3 className="font-heading font-semibold text-lg">Moc AI w liczbach</h3>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Przeanalizowane CV</span>
-                        <span className="font-semibold">50,000+</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Skuteczne dopasowania</span>
-                        <span className="font-semibold">94%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Średni czas analizy</span>
-                        <span className="font-semibold">30 sek</span>
-                      </div>
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Przeanalizowane CV</span>
+                    <span className="font-semibold">50,000+</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Skuteczne dopasowania</span>
+                    <span className="font-semibold">94%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Średni czas analizy</span>
+                    <span className="font-semibold">30 sek</span>
                   </div>
                 </div>
               </div>
-            </TabsContent>
-
-            <TabsContent value="profile">
-              <ProfileCompletion />
-            </TabsContent>
-
-            <TabsContent value="jobs">
-              <JobRecommendations />
-            </TabsContent>
-
-            <TabsContent value="applications">
-              <ApplicationStatus />
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
         </div>
       </main>
       <Footer />
