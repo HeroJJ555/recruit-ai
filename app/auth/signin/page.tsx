@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Github, Mail, ShieldCheck } from "lucide-react"
 import { signIn } from "next-auth/react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import Link from "next/link"
 
 export default function SignInPage() {
   return (
@@ -26,20 +29,40 @@ export default function SignInPage() {
                 Zaloguj przez Google
               </Button>
 
-              {/* Optional placeholders for future providers */}
-              <Button variant="outline" size="lg" className="w-full" disabled>
-                <Github className="mr-2 h-5 w-5" />
-                Github (wkrótce)
-              </Button>
-              <Button variant="outline" size="lg" className="w-full" disabled>
-                <Mail className="mr-2 h-5 w-5" />
-                Email (wkrótce)
-              </Button>
+              {/* Credentials login */}
+              <div className="pt-2">
+                <form
+                  className="space-y-3"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    const form = e.currentTarget as HTMLFormElement
+                    const email = (form.elements.namedItem("email") as HTMLInputElement)?.value
+                    const password = (form.elements.namedItem("password") as HTMLInputElement)?.value
+                    await signIn("credentials", { email, password, callbackUrl: "/", redirect: true })
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" name="email" type="email" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Hasło</Label>
+                    <Input id="password" name="password" type="password" required />
+                  </div>
+                  <Button type="submit" className="w-full" variant="outline">
+                    <Mail className="mr-2 h-5 w-5" /> Zaloguj przez email
+                  </Button>
+                </form>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               <ShieldCheck className="h-4 w-4" />
               <span>Twoje dane są chronione i wykorzystywane wyłącznie do logowania.</span>
+            </div>
+
+            <div className="text-center text-sm text-muted-foreground">
+              Nie masz konta? <Link className="text-primary hover:underline" href="/auth/register">Zarejestruj się</Link>
             </div>
           </CardContent>
         </Card>

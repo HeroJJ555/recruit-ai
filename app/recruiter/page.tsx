@@ -24,7 +24,7 @@ export default async function RecruiterDashboard() {
             <div>
               <h1 className="font-heading font-bold text-2xl">Dashboard</h1>
               <p className="text-muted-foreground">
-                Witaj ponownie, Anna! Oto przegląd Twoich procesów rekrutacyjnych.
+                Witaj ponownie{session.user?.name ? `, ${session.user.name}` : ""}! Oto przegląd Twoich procesów rekrutacyjnych.
               </p>
             </div>
             <div className="flex items-center space-x-4">

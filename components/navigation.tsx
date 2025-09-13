@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Brain, Users, FileText, LogOut, LogIn } from "lucide-react"
+import { Menu, X, Brain, LogOut, LogIn, UserPlus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -39,19 +39,6 @@ export function Navigation() {
 
           {/* Right side */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link href="/candidate">
-              <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
-                <FileText className="h-4 w-4" />
-                <span>Panel Kandydata</span>
-              </Button>
-            </Link>
-            <Link href="/recruiter">
-              <Button className="flex items-center space-x-2">
-                <Users className="h-4 w-4" />
-                <span>Panel Rekrutera</span>
-              </Button>
-            </Link>
-
             {/* Auth */}
             {session?.user ? (
               <DropdownMenu>
@@ -74,9 +61,18 @@ export function Navigation() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" onClick={() => signIn(undefined, { callbackUrl: "/" })}>
-                <LogIn className="mr-2 h-4 w-4" /> Zaloguj
-              </Button>
+              <div className="flex items-center gap-2">
+                <Link href="/auth/signin">
+                  <Button variant="ghost">
+                    <LogIn className="mr-2 h-4 w-4" /> Zaloguj
+                  </Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button>
+                    <UserPlus className="mr-2 h-4 w-4" /> Zarejestruj
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
 
@@ -92,26 +88,22 @@ export function Navigation() {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
-              <Link
-                href="/candidate"
-                className="text-foreground"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
-                  <FileText className="h-4 w-4" />
-                  <span>Panel Kandydata</span>
-                </Button>
-              </Link>
-              <Link
-                href="/recruiter"
-                className="text-foreground"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Button className="w-full flex items-center justify-center space-x-2">
-                  <Users className="h-4 w-4" />
-                  <span>Panel Rekrutera</span>
-                </Button>
-              </Link>
+              {!session?.user && (
+                <>
+                  <Link href="/auth/signin" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
+                      <LogIn className="h-4 w-4" />
+                      <span>Zaloguj</span>
+                    </Button>
+                  </Link>
+                  <Link href="/auth/register" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                    <Button className="w-full flex items-center justify-center space-x-2">
+                      <UserPlus className="h-4 w-4" />
+                      <span>Zarejestruj</span>
+                    </Button>
+                  </Link>
+                </>
+              )}
               <div className="pt-2 border-t border-border">
                 {session?.user ? (
                   <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}>

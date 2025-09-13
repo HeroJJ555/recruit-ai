@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
+  const { data: session } = useSession()
 
   return (
     <div className={cn("flex flex-col bg-sidebar border-r border-sidebar-border", className)}>
@@ -95,8 +97,8 @@ export function Sidebar({ className }: SidebarProps) {
               <Users className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">Anna Kowalska</p>
-              <p className="text-xs text-sidebar-foreground/70 truncate">Rekruter Senior</p>
+              <p className="text-sm font-medium text-sidebar-foreground truncate">{session?.user?.name || session?.user?.email || "Użytkownik"}</p>
+              <p className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ""}</p>
             </div>
           </div>
         </div>
