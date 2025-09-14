@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Sun, Moon, Monitor, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -143,6 +144,56 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
   const [pendingName, setPendingName] = useState<string>(user.name || '')
   const [pendingImage, setPendingImage] = useState<string>(user.image || '')
   const autoSavedRef = useRef(false)
+  const pathname = usePathname()
+  const router = useRouter()
+
+  // Derived flags (must be before callbacks using them)
+  const profileDirty = pendingName !== initialName || pendingImage !== initialImage
+  const appearanceDirty = pendingTheme !== (theme || 'system')
+  const aiDirty = (initialTemp !== null && pendingTemp !== initialTemp)
+  const dirty = profileDirty || appearanceDirty || aiDirty
+  const profileInvalid = pendingName.trim().length < 2 || pendingName.trim().length > 80
+
+  // Stable auto-save runner
+  const runAutoSave = useCallback(() => {
+    if (autoSavedRef.current) return
+    if (!dirty || profileInvalid) return
+    autoSavedRef.current = true
+    try {
+      // Profile via beacon / keepalive fetch
+      if (profileDirty) {
+        const body = JSON.stringify({ name: pendingName.trim(), image: pendingImage.trim() || null })
+        let sent = false
+        try {
+          if (navigator.sendBeacon) {
+            const blob = new Blob([body], { type: 'application/json' })
+            sent = navigator.sendBeacon('/api/recruiter/settings/profile', blob)
+          }
+        } catch { /* ignore */ }
+        if (!sent) {
+          fetch('/api/recruiter/settings/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            keepalive: true
+          }).catch(() => {})
+        }
+        setInitialName(pendingName)
+        setInitialImage(pendingImage)
+      }
+      // Theme
+      if (appearanceDirty) {
+        setTheme(pendingTheme)
+      }
+      // AI temperature
+      if (aiDirty) {
+        window.localStorage.setItem('ai-temp', String(pendingTemp))
+        window.dispatchEvent(new CustomEvent('ai-settings:changed', { detail: { temperature: pendingTemp } }))
+        setInitialTemp(pendingTemp)
+      }
+    } catch { /* swallow */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, profileInvalid, profileDirty, appearanceDirty, aiDirty, pendingName, pendingImage, pendingTheme, pendingTemp])
 
   // Initialize pending values
   useEffect(() => {
@@ -159,101 +210,69 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
     }
   }, [])
 
-  const profileDirty = pendingName !== initialName || pendingImage !== initialImage
-  const appearanceDirty = pendingTheme !== (theme || 'system')
-  const aiDirty = (initialTemp !== null && pendingTemp !== initialTemp)
-  const dirty = profileDirty || appearanceDirty || aiDirty
-  const profileInvalid = pendingName.trim().length < 2 || pendingName.trim().length > 80
 
-  const saveAll = async () => {
+  const saveAll = async (opts?: { silent?: boolean }) => {
     if (!dirty || profileInvalid) return
     setSaving(true)
     try {
-      // 1. Save profile first (server) so that if it fails we don't apply local changes prematurely
       if (profileDirty) {
         const res = await fetch('/api/recruiter/settings/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: pendingName.trim(), image: pendingImage.trim() || null })
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingName.trim(), image: pendingImage.trim() || null })
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || 'Nie udało się zapisać profilu')
         setInitialName(pendingName)
         setInitialImage(pendingImage)
+        router.refresh()
       }
-
-      // 2. Apply theme
       if (appearanceDirty) setTheme(pendingTheme)
-
-      // 3. Persist AI temp
       if (aiDirty && typeof window !== 'undefined') {
         window.localStorage.setItem('ai-temp', String(pendingTemp))
         window.dispatchEvent(new CustomEvent('ai-settings:changed', { detail: { temperature: pendingTemp } }))
         setInitialTemp(pendingTemp)
       }
-
-      toast({ title: 'Zapisano', description: 'Wszystkie zmiany zostały zapisane.' })
+      if (!opts?.silent) toast({ title: 'Zapisano', description: 'Wszystkie zmiany zostały zapisane.' })
     } catch (e: any) {
-      toast({ title: 'Błąd', description: e.message || 'Nie udało się zapisać ustawień.', variant: 'destructive' })
-    } finally {
-      setSaving(false)
-    }
+      if (!opts?.silent) toast({ title: 'Błąd', description: e.message || 'Nie udało się zapisać ustawień.', variant: 'destructive' })
+    } finally { setSaving(false) }
   }
 
   // Silent auto-save logic for navigation/tab close. Uses sendBeacon for profile to avoid blocking unload.
+  // Global listeners (browser events)
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const runAutoSave = () => {
-      if (autoSavedRef.current) return
-      if (!dirty || profileInvalid) return
-      autoSavedRef.current = true
-      try {
-        // Profile via beacon / keepalive fetch
-        if (profileDirty) {
-          const body = JSON.stringify({ name: pendingName.trim(), image: pendingImage.trim() || null })
-          let sent = false
-          try {
-            if (navigator.sendBeacon) {
-              const blob = new Blob([body], { type: 'application/json' })
-              sent = navigator.sendBeacon('/api/recruiter/settings/profile', blob)
-            }
-          } catch { /* ignore */ }
-          if (!sent) {
-            // Fallback keepalive fetch (non-blocking best effort)
-            fetch('/api/recruiter/settings/profile', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body,
-              keepalive: true
-            }).catch(() => {})
-          }
-          setInitialName(pendingName)
-          setInitialImage(pendingImage)
-        }
-        // Theme
-        if (appearanceDirty) {
-          setTheme(pendingTheme)
-        }
-        // AI temperature
-        if (aiDirty) {
-          window.localStorage.setItem('ai-temp', String(pendingTemp))
-          window.dispatchEvent(new CustomEvent('ai-settings:changed', { detail: { temperature: pendingTemp } }))
-          setInitialTemp(pendingTemp)
-        }
-      } catch { /* swallow */ }
-    }
-
     const handleBeforeUnload = () => runAutoSave()
     const handleVisibility = () => { if (document.visibilityState === 'hidden') runAutoSave() }
     window.addEventListener('beforeunload', handleBeforeUnload)
     window.addEventListener('pagehide', handleBeforeUnload)
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
+      runAutoSave() // ensure save on component unmount (internal navigation)
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('pagehide', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [dirty, profileDirty, appearanceDirty, aiDirty, profileInvalid, pendingName, pendingImage, pendingTheme, pendingTemp, setTheme])
+  }, [runAutoSave])
+
+  // Detect internal route change away from settings (App Router navigation)
+  const prevPathRef = useRef(pathname)
+  useEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      // Leaving settings page
+      if (prevPathRef.current?.includes('/recruiter/settings')) {
+        runAutoSave()
+      }
+      prevPathRef.current = pathname
+    }
+  }, [pathname, runAutoSave])
+
+  const debounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!dirty || profileInvalid) return
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => { saveAll({ silent: true }) }, 1200)
+    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current) }
+  }, [dirty, profileInvalid, pendingName, pendingImage, pendingTheme, pendingTemp])
 
   return (
     <div className="w-full max-w-6xl mx-auto">
@@ -269,7 +288,7 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
               </div>
             </TabsList>
             <div className="py-2">
-              <Button size="sm" onClick={saveAll} disabled={!dirty || saving || profileInvalid} className="gap-2">
+              <Button size="sm" onClick={() => saveAll()} disabled={!dirty || saving || profileInvalid} className="gap-2">
                 {saving ? 'Zapisywanie...' : (<><Save className="h-4 w-4" /> Zapisz zmiany</>)}
               </Button>
             </div>
