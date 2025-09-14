@@ -2,13 +2,29 @@ import { Sidebar } from "@/components/recruiter/sidebar"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import ClientSettingsTabs from "./settingsTabs"
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/auth/signin')
-  // Provide minimal user fields to client subcomponent
-  const user = { name: session.user?.name || '', email: session.user?.email || '', image: (session.user as any)?.image || '' }
+  // Always fetch the freshest user profile from DB so updates (name/image) show immediately after router.refresh
+  let dbUser = null
+  if (session.user?.email) {
+    try {
+      dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { name: true, email: true, image: true }
+      })
+    } catch {
+      // swallow – fall back to session values
+    }
+  }
+  const user = {
+    name: dbUser?.name ?? session.user?.name ?? '',
+    email: dbUser?.email ?? session.user?.email ?? '',
+    image: dbUser?.image ?? (session.user as any)?.image ?? ''
+  }
   return (
     <div className="flex h-screen bg-background">
       <Sidebar className="w-64 flex-shrink-0" />
