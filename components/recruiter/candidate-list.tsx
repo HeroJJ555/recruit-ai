@@ -23,6 +23,7 @@ export function CandidateList() {
         const res = await fetch("/api/candidate/applications")
         if (res.ok) {
           const data = await res.json()
+          console.log("Candidates data:", data) // Debug log
           setCandidates(data.items || [])
         }
       } catch (error) {
@@ -72,6 +73,7 @@ export function CandidateList() {
               <p className="text-center text-muted-foreground py-8">Brak zgłoszeń kandydatów</p>
             ) : (
               candidates.map((candidate: any) => {
+                console.log("Rendering candidate:", candidate) // Debug log
                 const name = `${candidate.firstName ?? ""} ${candidate.lastName ?? ""}`.trim()
                 const skills = candidate.skills ? (candidate.skills as string).split(",").map((s: string) => s.trim()).filter(Boolean) : []
                 const appliedDate = candidate.createdAt ? formatDistanceToNow(new Date(candidate.createdAt), { addSuffix: true, locale: pl }) : "-"

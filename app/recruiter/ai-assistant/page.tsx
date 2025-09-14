@@ -2,7 +2,7 @@ import { Sidebar } from "@/components/recruiter/sidebar"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import { AIAssistantWidget } from "@/components/recruiter/ai-assistant-widget"
+import { AIAssistantFullscreen } from "@/components/recruiter/ai-assistant-fullscreen"
 
 export default async function AIAssistantPage() {
   const session = await getServerSession(authOptions)
@@ -17,7 +17,7 @@ export default async function AIAssistantPage() {
             <p className="text-muted-foreground text-sm">Rozmawiaj z asystentem aby przyspieszyć proces rekrutacji.</p>
           </div>
         </header>
-        <AIAssistantWidget />
+        <AIAssistantFullscreen />
       </main>
     </div>
   )

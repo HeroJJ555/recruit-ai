@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Brain, Send, User, Bot } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 
 interface Message {
   id: string
@@ -17,15 +17,17 @@ interface Message {
   error?: boolean
 }
 
-export function AIAssistantWidget() {
-  const router = useRouter()
+export function AIAssistantFullscreen() {
+  const searchParams = useSearchParams()
+  const initialQuestion = searchParams.get('q') || ""
+  
   const [messages, setMessages] = useState<Message[]>([{
     id: "init",
     role: "assistant",
     content: "Cześć! Jestem Twoim asystentem AI. Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
     timestamp: new Date(),
   }])
-  const [inputValue, setInputValue] = useState("")
+  const [inputValue, setInputValue] = useState(initialQuestion)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -33,7 +35,13 @@ export function AIAssistantWidget() {
   const shouldStickToBottomRef = useRef(true)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
- 
+  // Auto-send initial question if provided
+  useEffect(() => {
+    if (initialQuestion && messages.length === 1) {
+      handleSendMessage()
+    }
+  }, [initialQuestion])
+
   const handleScroll = useCallback(() => {
     if (!scrollAreaRef.current) return
     const el = scrollAreaRef.current
@@ -54,18 +62,41 @@ export function AIAssistantWidget() {
 
   async function handleSendMessage() {
     if (!inputValue.trim() || isLoading) return
-    
+    setErrorMsg(null)
     const userContent = inputValue.trim()
-    
-    // Przekieruj do zakładki Asystent AI z pytaniem w URL
-    const encodedQuestion = encodeURIComponent(userContent)
-    router.push(`/recruiter/ai-assistant?q=${encodedQuestion}`)
+    const userMessage: Message = { id: Date.now().toString(), role: "user", content: userContent, timestamp: new Date() }
+    const pendingAssistant: Message = { id: userMessage.id + "_pending", role: "assistant", content: "…", timestamp: new Date(), pending: true }
+    setMessages(prev => [...prev, userMessage, pendingAssistant])
+    setInputValue("")
+    setIsLoading(true)
+
+    const payloadMessages = messages
+      .concat([{ id: "temp" + Date.now(), role: "user", content: userContent, timestamp: new Date() }])
+      .map(m => ({ role: m.role, content: m.content }))
+    const payload = {
+      messages: payloadMessages,
+    }
+    try {
+      const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `Błąd API (${res.status})`)
+      }
+      const data = await res.json()
+      setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: data.answer || "(pusta odpowiedź)", pending: false } : m))
+    } catch (e: any) {
+      setErrorMsg(e.message)
+      setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: "Błąd: " + e.message, error: true, pending: false } : m))
+    } finally {
+      setIsLoading(false)
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 50)
+    }
   }
 
-
-
   return (
-    <Card className="h-[500px] flex flex-col">
+    <Card className="h-[700px] flex flex-col">
       <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center space-x-2">
           <Brain className="h-5 w-5 text-primary" />
@@ -85,7 +116,7 @@ export function AIAssistantWidget() {
                       {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className={`h-4 w-4 ${message.error ? "text-destructive" : "text-secondary-foreground"}`} />}
                     </div>
                     <div className={`p-3 rounded-lg text-sm leading-relaxed ${isUser ? "bg-primary text-primary-foreground" : message.error ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                      <p>{message.content}</p>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
                       {message.pending && !message.error && (
                         <div className="mt-2 flex space-x-1">
                           <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
