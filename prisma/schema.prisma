@@ -20,9 +20,8 @@ model User {
   accounts              Account[]
   candidateApplications CandidateApplication[]
   jobs                  Job[]
-<<<<<<< HEAD
   meetings              Meeting[]
-  MessageHistory        MessageHistory[]
+  messageHistory        MessageHistory[]
   sessions              Session[]
 }
 
@@ -49,38 +48,7 @@ model CandidateApplication {
   user           User?             @relation(fields: [userId], references: [id])
   cvAnalysis     CvAnalysis?
   meetings       Meeting[]
-  MessageHistory MessageHistory[]
-=======
-  Meeting               Meeting[]
-  sessions              Session[]
-  messagesSent          MessageHistory[]
-}
-
-model CandidateApplication {
-  id         String            @id @default(cuid())
-  userId     String?
-  jobId      String?
-  firstName  String
-  lastName   String
-  email      String
-  phone      String?
-  position   String
-  experience String
-  skills     String
-  education  String?
-  status     ApplicationStatus @default(PENDING)
-  cvFileName String?
-  cvFileType String?
-  cvFileSize Int?
-  cvFileData Bytes?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  job        Job?              @relation(fields: [jobId], references: [id])
-  user       User?             @relation(fields: [userId], references: [id])
-  cvAnalysis CvAnalysis?
   messageHistory MessageHistory[]
-  Meeting    Meeting[]
->>>>>>> 2f2be52d85bbf486339d02f897cae2811cea25eb
 
   @@index([email])
   @@index([createdAt])
@@ -172,7 +140,6 @@ model VerificationToken {
 }
 
 model Meeting {
-<<<<<<< HEAD
   id              String               @id @default(cuid())
   candidateId     String
   recruiterId     String
@@ -189,24 +156,6 @@ model Meeting {
   updatedAt       DateTime             @updatedAt
   candidate       CandidateApplication @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   recruiter       User                 @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
-=======
-  id                   String               @id
-  candidateId          String
-  recruiterId          String
-  title                String
-  description          String?
-  startTime            DateTime
-  endTime              DateTime
-  timeZone             String               @default("Europe/Warsaw")
-  meetingLink          String?
-  calendarEventId      String?
-  status               MeetingStatus        @default(SCHEDULED)
-  notes                String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime
-  CandidateApplication CandidateApplication @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  User                 User                 @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
->>>>>>> 2f2be52d85bbf486339d02f897cae2811cea25eb
 
   @@index([candidateId])
   @@index([recruiterId])
@@ -214,16 +163,17 @@ model Meeting {
   @@index([status])
 }
 
-<<<<<<< HEAD
 model MessageHistory {
-  id                     String               @id
+  id                     String               @id @default(cuid())
   candidateApplicationId String
+  candidateApplication   CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
   subject                String
   content                String
   template               String?
   recipientEmail         String
   recipientName          String
   senderUserId           String?
+  senderUser             User?                @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
   mailProvider           String               @default("mailchimp")
   externalMessageId      String?
   status                 MessageStatus        @default(SENT)
@@ -231,9 +181,7 @@ model MessageHistory {
   deliveredAt            DateTime?
   errorMessage           String?
   createdAt              DateTime             @default(now())
-  updatedAt              DateTime
-  CandidateApplication   CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
-  User                   User?                @relation(fields: [senderUserId], references: [id])
+  updatedAt              DateTime             @updatedAt
 
   @@index([candidateApplicationId])
   @@index([recipientEmail])
@@ -241,31 +189,17 @@ model MessageHistory {
   @@index([status])
 }
 
-enum JobStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-  OPEN
-  PAUSED
-  CLOSED
-}
-
 enum ApplicationStatus {
   PENDING
-  REJECTED
-  WAITING
-  INTERVIEW
-  HIRED
-  WITHDRAWN
-=======
-enum ApplicationStatus {
-  PENDING
->>>>>>> 2f2be52d85bbf486339d02f897cae2811cea25eb
   REVIEWED
   CONTACTED
   INTERVIEW_SCHEDULED
   INTERVIEW_COMPLETED
-<<<<<<< HEAD
+  REJECTED
+  HIRED
+  WAITING
+  INTERVIEW
+  WITHDRAWN
 }
 
 enum MeetingStatus {
@@ -273,22 +207,15 @@ enum MeetingStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
-=======
-  REJECTED
-  HIRED
-  WAITING
-  INTERVIEW
-  WITHDRAWN
 }
 
 enum JobStatus {
   DRAFT
+  PUBLISHED
+  ARCHIVED
   OPEN
   PAUSED
   CLOSED
-  PUBLISHED
-  ARCHIVED
->>>>>>> 2f2be52d85bbf486339d02f897cae2811cea25eb
 }
 
 enum MessageStatus {
@@ -297,50 +224,3 @@ enum MessageStatus {
   FAILED
   BOUNCED
 }
-<<<<<<< HEAD
-=======
-
-model MessageHistory {
-  id                    String                @id @default(cuid())
-  candidateApplicationId String
-  candidateApplication  CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
-  
-  // Message content
-  subject               String
-  content               String
-  template              String?              // Template used (positive, neutral, negative, ai)
-  
-  // Recipient info
-  recipientEmail        String
-  recipientName         String
-  
-  // Sender info
-  senderUserId          String?
-  senderUser            User?                @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
-  
-  // Email service details
-  mailProvider          String               @default("mailchimp") // mailchimp, resend, etc.
-  externalMessageId     String?              // ID from mail service
-  status                MessageStatus        @default(SENT)
-  
-  // Metadata
-  sentAt                DateTime             @default(now())
-  deliveredAt           DateTime?
-  errorMessage          String?
-  
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-
-  @@index([candidateApplicationId])
-  @@index([recipientEmail])
-  @@index([sentAt])
-  @@index([status])
-}
-
-enum MeetingStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-}
->>>>>>> 2f2be52d85bbf486339d02f897cae2811cea25eb

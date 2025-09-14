@@ -129,35 +129,51 @@ export async function POST(req: NextRequest) {
         where: { email: session.user.email }
       });
 
-      // Save to message history
-      const messageHistory = await prisma.messageHistory.create({
-        data: {
-          candidateApplicationId: candidateId,
-          subject: subject,
-          content: message,
-          template: template,
-          recipientEmail: to,
-          recipientName: candidateName,
-          senderUserId: user?.id || null,
-          mailProvider: 'mailchimp',
-          externalMessageId: emailResult[0]?.id || null,
-          status: emailSuccess ? 'SENT' : 'FAILED',
-        }
-      });
+      // Use a transaction to ensure status update persists even if history logging fails
+      let historyId: string | null = null;
+      try {
+  const history = await (prisma as any).messageHistory.create({
+          data: {
+            candidateApplicationId: candidateId,
+            subject,
+            content: message,
+            template,
+            recipientEmail: to,
+            recipientName: candidateName,
+            senderUserId: user?.id || null,
+            mailProvider: 'mailchimp',
+            externalMessageId: emailResult[0]?.id || null,
+            status: emailSuccess ? 'SENT' : 'FAILED',
+          }
+        });
+        historyId = history.id;
+        console.log("💾 Message saved to history:", historyId);
+      } catch (historyErr) {
+        console.error("⚠️ Failed to save message history (continuing with status update)", historyErr);
+      }
 
-      // Update candidate status to CONTACTED
-      await prisma.candidateApplication.update({
-        where: { id: candidateId },
-        data: { status: 'CONTACTED' }
-      });
+      // Always attempt to update candidate status regardless of history result
+      try {
+        await prisma.candidateApplication.update({
+          where: { id: candidateId },
+          data: { status: 'CONTACTED' as any }
+        });
+        console.log("✅ Candidate status updated to CONTACTED");
+      } catch (statusErr) {
+        console.error("❌ Failed to update candidate status", statusErr);
+        return NextResponse.json({
+          success: emailSuccess,
+          warning: 'Nie udało się zaktualizować statusu kandydata',
+          historyId,
+          messageId: emailResult[0]?.id || null
+        }, { status: 207 }); // 207 Multi-Status style partial success
+      }
 
-      console.log("💾 Message saved to history:", messageHistory.id);
-      
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: true,
         messageId: emailResult[0]?.id,
-        historyId: messageHistory.id,
-        message: "Mail został wysłany pomyślnie i zapisany w historii"
+        historyId,
+        message: historyId ? 'Mail został wysłany pomyślnie i zapisany w historii' : 'Mail wysłany, ale nie zapisano historii (sprawdź logi)'
       });
 
     } catch (emailError: any) {
@@ -168,14 +184,14 @@ export async function POST(req: NextRequest) {
         where: { email: session.user.email }
       });
 
-      // Save failed attempt to history
+      // Attempt to log failed send (non-fatal)
       try {
-        await prisma.messageHistory.create({
+  await (prisma as any).messageHistory.create({
           data: {
             candidateApplicationId: candidateId,
-            subject: subject,
+            subject,
             content: message,
-            template: template,
+            template,
             recipientEmail: to,
             recipientName: candidateName,
             senderUserId: user?.id || null,
