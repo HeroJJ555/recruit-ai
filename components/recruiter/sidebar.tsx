@@ -20,6 +20,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Mail,
 } from "lucide-react"
 
 const navigation = [
@@ -27,7 +28,7 @@ const navigation = [
   { name: "Kandydaci", href: "/recruiter/candidates", icon: Users },
   { name: "Oferty pracy", href: "/recruiter/jobs", icon: FileText },
   { name: "Asystent AI", href: "/recruiter/ai-assistant", icon: Brain },
-  { name: "Analityka", href: "/recruiter/analytics", icon: BarChart3 },
+  { name: "Statystyka", href: "/recruiter/analytics", icon: BarChart3 },
   { name: "Wiadomości", href: "/recruiter/messages", icon: MessageSquare },
   { name: "Wyszukiwanie", href: "/recruiter/search", icon: Search },
   { name: "Kalendarz", href: "/recruiter/calendar", icon: Calendar },
