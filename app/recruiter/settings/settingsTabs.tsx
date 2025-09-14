@@ -125,21 +125,6 @@ function NotificationsSettings() {
   )
 }
 
-function SecuritySettings() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Bezpieczeństwo</CardTitle>
-        <CardDescription>Zarządzanie sesjami i dostępem.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Button size="sm" variant="outline" disabled>Resetuj wszystkie sesje (Wkrótce)</Button>
-        <p className="text-xs text-muted-foreground">Po wdrożeniu: unieważnianie tokenów sesyjnych i wymuszanie ponownego logowania.</p>
-      </CardContent>
-    </Card>
-  )
-}
-
 function ProfileForm({ user }: { user: UserLite }) {
   const [name, setName] = useState(user.name || "")
   const [image, setImage] = useState(user.image || "")
@@ -191,29 +176,33 @@ function ProfileForm({ user }: { user: UserLite }) {
 
 export default function ClientSettingsTabs({ user }: { user: UserLite }) {
   return (
-    <Tabs defaultValue="profile" className="w-full">
-      <TabsList className="mb-4 grid grid-cols-5 w-full max-w-2xl">
-        <TabsTrigger value="profile">Profil</TabsTrigger>
-        <TabsTrigger value="appearance">Wygląd</TabsTrigger>
-        <TabsTrigger value="ai">AI</TabsTrigger>
-        <TabsTrigger value="notifications">Powiadomienia</TabsTrigger>
-        <TabsTrigger value="security">Bezpieczeństwo</TabsTrigger>
-      </TabsList>
-      <TabsContent value="profile" className="space-y-6">
-        <ProfileForm user={user} />
-      </TabsContent>
-      <TabsContent value="appearance" className="space-y-6">
-        <ThemeSettings />
-      </TabsContent>
-      <TabsContent value="ai" className="space-y-6">
-        <AISettings />
-      </TabsContent>
-      <TabsContent value="notifications" className="space-y-6">
-        <NotificationsSettings />
-      </TabsContent>
-      <TabsContent value="security" className="space-y-6">
-        <SecuritySettings />
-      </TabsContent>
-    </Tabs>
+    <div className="w-full max-w-6xl mx-auto">
+      <Tabs defaultValue="profile" className="w-full">
+        <div className="sticky top-0 z-10 -mx-6 px-6 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <TabsList className="w-full flex gap-1 overflow-x-auto md:overflow-visible justify-start rounded-none bg-transparent border-b border-border h-auto p-0">
+            <div className="flex w-full gap-1 py-2">
+              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="profile">Profil</TabsTrigger>
+              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="appearance">Wygląd</TabsTrigger>
+              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="ai">AI</TabsTrigger>
+              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="notifications">Powiadomienia</TabsTrigger>
+            </div>
+          </TabsList>
+        </div>
+        <div className="pt-4">
+          <TabsContent value="profile" className="space-y-6">
+            <ProfileForm user={user} />
+          </TabsContent>
+          <TabsContent value="appearance" className="space-y-6">
+            <ThemeSettings />
+          </TabsContent>
+          <TabsContent value="ai" className="space-y-6">
+            <AISettings />
+          </TabsContent>
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationsSettings />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
   )
 }
