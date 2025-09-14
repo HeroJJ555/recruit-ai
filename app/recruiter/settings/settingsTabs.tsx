@@ -190,31 +190,6 @@ function EmailTestSettings() {
   )
 }
 
-function NotificationsSettings() {
-  const items = [
-    { key: 'emailNewCandidates', label: 'Email o nowych kandydatach' },
-    { key: 'weeklySummary', label: 'Tygodniowe podsumowanie' },
-    { key: 'slaAlerts', label: 'Alerty SLA (opóźnione procesy)' },
-  ]
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Powiadomienia</CardTitle>
-        <CardDescription>Na razie ustawienia nie są zapisywane – warstwa demonstracyjna.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {items.map(i => (
-          <div key={i.key} className="flex items-center justify-between py-1">
-            <span className="text-sm">{i.label}</span>
-            <Switch disabled />
-          </div>
-        ))}
-        <p className="text-xs text-muted-foreground">Persistence pojawi się po dodaniu tabeli ustawień użytkownika.</p>
-      </CardContent>
-    </Card>
-  )
-}
-
 function ProfileForm({ name, image, onChange, firstName, lastName, onNameSplitChange, imageError }: { name: string; image: string; onChange: (field: 'name' | 'image', value: string) => void; firstName: string; lastName: string; onNameSplitChange: (which: 'first' | 'last', value: string) => void; imageError?: string | null }) {
   return (
     <Card>
@@ -233,11 +208,6 @@ function ProfileForm({ name, image, onChange, firstName, lastName, onNameSplitCh
               <label className="text-sm font-medium">Nazwisko</label>
               <Input value={lastName} onChange={e => onNameSplitChange('last', e.target.value)} minLength={2} maxLength={80} />
             </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Pełne imię i nazwisko / nazwa wyświetlana</label>
-            <Input value={name} onChange={e => onChange('name', e.target.value)} minLength={2} maxLength={80} required />
-            <p className="text-xs text-muted-foreground">Limit 80 znaków (zgodnie z walidacją backend).</p>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">URL zdjęcia (opcjonalne)</label>
@@ -413,7 +383,6 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="appearance">Wygląd</TabsTrigger>
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="ai">AI</TabsTrigger>
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="email">Email</TabsTrigger>
-                <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="notifications">Powiadomienia</TabsTrigger>
               </div>
             </TabsList>
             <div className="py-2">
@@ -461,9 +430,6 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
           </TabsContent>
           <TabsContent value="email" className="space-y-6">
             <EmailTestSettings />
-          </TabsContent>
-          <TabsContent value="notifications" className="space-y-6">
-            <NotificationsSettings />
           </TabsContent>
         </div>
       </Tabs>

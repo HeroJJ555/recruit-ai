@@ -196,6 +196,28 @@ model MessageHistory {
   @@index([status])
 }
 
+model BackgroundCheck {
+  id             String                 @id @default(cuid())
+  candidateId    String                 @unique
+  candidate      CandidateApplication   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  requestedById  String
+  requestedBy    User                   @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  status         BackgroundCheckStatus  @default(PENDING)
+  consentGiven   Boolean                @default(false)
+  consentAt      DateTime?
+  startedAt      DateTime?              @default(now())
+  completedAt    DateTime?
+  summary        String?
+  findings       Json?
+  riskFlags      Json?
+  error          String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([requestedById])
+  @@index([status])
+}
+
 enum ApplicationStatus {
   PENDING
   REVIEWED
@@ -230,4 +252,11 @@ enum MessageStatus {
   DELIVERED
   FAILED
   BOUNCED
+}
+
+enum BackgroundCheckStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
 }
