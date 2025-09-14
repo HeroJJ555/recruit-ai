@@ -40,7 +40,7 @@ const EMAIL_TEMPLATES = {
 
 Dziękujemy za aplikację na stanowisko {{position}}. Po analizie Twojego CV jesteśmy pod wrażeniem Twoich kwalifikacji!
 
-🎯 **Twoje mocne strony:**
+**Twoje mocne strony:**
 {{#strengths}}
 • {{.}}
 {{/strengths}}
@@ -61,12 +61,12 @@ Zespół Rekrutacji`
 
 Dziękujemy za zainteresowanie stanowiskiem {{position}}.
 
-👍 **Pozytywne elementy Twojego profilu:**
+**Pozytywne elementy Twojego profilu:**
 {{#strengths}}
 • {{.}}
 {{/strengths}}
 
-🔍 **Potrzebujemy wyjaśnienia:**
+**Potrzebujemy wyjaśnienia:**
 {{#weaknesses}}
 • {{.}}
 {{/weaknesses}}
@@ -85,7 +85,7 @@ Dziękujemy za aplikację na stanowisko {{position}}.
 Po analizie musieliśmy podjąć decyzję o nieprzejściu do kolejnego etapu na to konkretne stanowisko.
 
 {{#strengths}}
-💡 **Pozytywne elementy:**
+**Pozytywne elementy:**
 {{#strengths}}
 • {{.}}
 {{/strengths}}
@@ -452,11 +452,6 @@ Zespół Rekrutacji`;
                         <div className="flex items-center gap-2 text-xs">
                           <FileText className="h-3 w-3" />
                           <span>Ocena CV: {candidate.cvAnalysis.score}/100</span>
-                          {candidate.aiProvider && (
-                            <Badge variant="outline" className="text-xs">
-                              {candidate.aiProvider}
-                            </Badge>
-                          )}
                         </div>
                       </div>
                     </div>
