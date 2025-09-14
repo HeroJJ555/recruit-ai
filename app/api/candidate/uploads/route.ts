@@ -34,6 +34,19 @@ export async function POST(req: NextRequest) {
     })
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
 
+    // Trigger CV analysis AFTER successful upload if applicationId is provided
+    if (applicationId) {
+      try {
+        // Schedule background analysis - fire and forget
+        fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/candidate/applications/${applicationId}/analyze`, {
+          method: 'GET',
+        }).catch(() => {}) // Silent fail - analysis can be triggered manually later
+      } catch (error) {
+        // Don't fail upload if analysis scheduling fails
+        console.log('Failed to schedule CV analysis:', error)
+      }
+    }
+
     return NextResponse.json({ bucket, key, hash, size: file.size, type: file.type || "application/octet-stream", name: file.name }, { status: 201 })
   } catch (e: any) {
     console.error("Upload error", e)

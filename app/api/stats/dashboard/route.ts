@@ -34,15 +34,15 @@ export async function GET(request: NextRequest) {
         }
       }),
       
-      // Open jobs count
-      prisma.job.count({
+            // Open jobs count
+      (prisma as any).job.count({
         where: {
           status: 'OPEN'
         }
       }),
       
       // Analysis statistics
-      prisma.cvAnalysis.aggregate({
+      (prisma as any).cvAnalysis.aggregate({
         _avg: {
           matchScore: true
         },

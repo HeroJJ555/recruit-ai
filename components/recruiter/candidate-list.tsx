@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Star, Calendar, Eye, FileDown } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+import { Star, Calendar, Eye, FileDown, MoreVertical, X, Clock, CheckCircle, Brain } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
@@ -15,6 +17,7 @@ import { useEffect, useState } from "react"
 export function CandidateList() {
   const [candidates, setCandidates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
   const router = useRouter()
 
   useEffect(() => {
@@ -23,6 +26,7 @@ export function CandidateList() {
         const res = await fetch("/api/candidate/applications")
         if (res.ok) {
           const data = await res.json()
+          console.log("Candidates data:", data) // Debug log
           setCandidates(data.items || [])
         }
       } catch (error) {
@@ -47,11 +51,97 @@ export function CandidateList() {
     lead: "Lead",
   } as any)[(exp || "").toLowerCase()] || "-"
 
+  const handleSelectCandidate = (candidateId: string, checked: boolean) => {
+    const newSelected = new Set(selectedCandidates)
+    if (checked) {
+      newSelected.add(candidateId)
+    } else {
+      newSelected.delete(candidateId)
+    }
+    setSelectedCandidates(newSelected)
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCandidates(new Set(candidates.map(c => c.id)))
+    } else {
+      setSelectedCandidates(new Set())
+    }
+  }
+
+  const handleBulkAction = async (action: 'reject' | 'waiting' | 'interview' | 'ai-decision') => {
+    const selectedIds = Array.from(selectedCandidates)
+    if (selectedIds.length === 0) return
+
+    if (action === 'ai-decision') {
+      // Przekieruj do asystenta AI z pytaniem o decyzję
+      const candidateNames = candidates
+        .filter(c => selectedIds.includes(c.id))
+        .map(c => `${c.firstName} ${c.lastName}`)
+        .join(', ')
+      const question = `Pomóż mi podjąć decyzję co zrobić z tymi kandydatami: ${candidateNames}. Przeanalizuj ich profile i zaproponuj czy odrzucić, zaprosić na rozmowę czy poczekać.`
+      router.push(`/recruiter/ai-assistant?q=${encodeURIComponent(question)}`)
+      return
+    }
+
+    // TODO: Implementacja aktualizacji statusów w bazie danych
+    console.log(`Bulk action: ${action} for candidates:`, selectedIds)
+    
+    // Reset selection
+    setSelectedCandidates(new Set())
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Najnowsi kandydaci</CardTitle>
-        <CardDescription>Ostatnio przesłane wnioski kandydatów</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Najnowsi kandydaci</CardTitle>
+            <CardDescription>Ostatnio przesłane wnioski kandydatów</CardDescription>
+          </div>
+          {selectedCandidates.size > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Zaznaczono: {selectedCandidates.size}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Akcje masowe
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleBulkAction('reject')}>
+                    <X className="h-4 w-4 mr-2" />
+                    Odrzuć
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction('waiting')}>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Oczekuje
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBulkAction('interview')}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Zaproś na rozmowę
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleBulkAction('ai-decision')}>
+                    <Brain className="h-4 w-4 mr-2" />
+                    Poproś AI o decyzję
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
+        {candidates.length > 0 && (
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              checked={selectedCandidates.size === candidates.length}
+              onCheckedChange={handleSelectAll}
+            />
+            <span className="text-sm text-muted-foreground">Zaznacz wszystkich</span>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -72,6 +162,7 @@ export function CandidateList() {
               <p className="text-center text-muted-foreground py-8">Brak zgłoszeń kandydatów</p>
             ) : (
               candidates.map((candidate: any) => {
+                console.log("Rendering candidate:", candidate) // Debug log
                 const name = `${candidate.firstName ?? ""} ${candidate.lastName ?? ""}`.trim()
                 const skills = candidate.skills ? (candidate.skills as string).split(",").map((s: string) => s.trim()).filter(Boolean) : []
                 const appliedDate = candidate.createdAt ? formatDistanceToNow(new Date(candidate.createdAt), { addSuffix: true, locale: pl }) : "-"
@@ -82,37 +173,46 @@ export function CandidateList() {
                 return (
                   <div
                     key={candidate.id}
-                    onClick={() => router.push(`/recruiter/candidates/${candidate.id}`)}
-                    className="group flex items-center justify-between p-4 border rounded-lg hover:bg-accent/40 transition-colors cursor-pointer"
+                    className="group flex items-center justify-between p-4 border rounded-lg hover:bg-accent/40 transition-colors"
                   >
                     <div className="flex items-center space-x-4 shrink-0">
-                      <Avatar>
-                        <AvatarFallback>
-                          {name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{name || "Brak imienia"}</h4>
-                          <Badge variant="outline">{getExpLabel(candidate.experience)}</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">{candidate.position ?? "-"}</div>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span>{appliedDate}</span>
+                      <Checkbox
+                        checked={selectedCandidates.has(candidate.id)}
+                        onCheckedChange={(checked) => handleSelectCandidate(candidate.id, checked === true)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div 
+                        onClick={() => router.push(`/recruiter/candidates/${candidate.id}`)}
+                        className="flex items-center space-x-4 cursor-pointer"
+                      >
+                        <Avatar>
+                          <AvatarFallback>
+                            {name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">{name || "Brak imienia"}</h4>
+                            <Badge variant="outline">{getExpLabel(candidate.experience)}</Badge>
                           </div>
-                          <div className="truncate max-w-[220px]" title={candidate.email}>{candidate.email ?? "-"}</div>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {skills.slice(0, 3).map((skill: string) => (
-                            <Badge key={skill} variant="outline" className="text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
+                          <div className="text-sm text-muted-foreground">{candidate.position ?? "-"}</div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>{appliedDate}</span>
+                            </div>
+                            <div className="truncate max-w-[220px]" title={candidate.email}>{candidate.email ?? "-"}</div>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {skills.slice(0, 3).map((skill: string) => (
+                              <Badge key={skill} variant="outline" className="text-xs">
+                                {skill}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -132,41 +232,32 @@ export function CandidateList() {
                           )}
                         </p>
                       </div>
-                      <TooltipProvider>
-                        <div className="flex items-center gap-1 shrink-0 min-w-[84px] justify-end">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Link href={`/recruiter/candidates/${candidate.id}`} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label="Profil">
-                                <Button variant="secondary" size="icon" className="rounded-full">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            </TooltipTrigger>
-                            <TooltipContent>Profil</TooltipContent>
-                          </Tooltip>
-                          {candidate.cvFileName ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Link href={`/api/candidate/applications/${candidate.id}/cv`} prefetch={false} onClick={(e) => e.stopPropagation()} aria-label="Pobierz CV">
-                                  <Button variant="secondary" size="icon" className="rounded-full">
-                                    <FileDown className="h-4 w-4" />
-                                  </Button>
-                                </Link>
-                              </TooltipTrigger>
-                              <TooltipContent>Pobierz CV</TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon" className="rounded-full" disabled onClick={(e) => e.stopPropagation()} aria-label="Brak CV">
-                                  <FileDown className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Brak CV</TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TooltipProvider>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => router.push(`/recruiter/candidates/${candidate.id}`)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Zobacz profil
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleBulkAction('reject')}>
+                            <X className="h-4 w-4 mr-2" />
+                            Odrzuć
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleBulkAction('waiting')}>
+                            <Clock className="h-4 w-4 mr-2" />
+                            Oczekuje
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleBulkAction('interview')}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Zaproś na rozmowę
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 )

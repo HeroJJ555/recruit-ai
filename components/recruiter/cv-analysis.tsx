@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Sparkles, MessageSquare, Award, Briefcase, User, AlertCircle } from "lucide-react"
+import { Loader2, Sparkles, MessageSquare, Award, Briefcase, User, AlertCircle, RefreshCw } from "lucide-react"
 
 type Result = {
   summary?: string
@@ -16,7 +16,7 @@ type Result = {
     role_fit?: number
   }
   key_highlights?: string[]
-  technical_skills?: (string | { skill: string; match?: boolean })[]
+  technical_skills?: string[] // Simplified to only strings
   experience_summary?: {
     years?: number
     level?: string
@@ -36,6 +36,15 @@ export function CvAnalysis({ appId }: { appId: string }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hasInitialLoad, setHasInitialLoad] = useState(false)
+
+  // Automatyczne uruchomienie analizy przy załadowaniu komponentu
+  useEffect(() => {
+    if (!hasInitialLoad) {
+      setHasInitialLoad(true)
+      run(false)
+    }
+  }, [hasInitialLoad])
 
   const run = async (refresh = false) => {
     setLoading(true)
@@ -44,11 +53,66 @@ export function CvAnalysis({ appId }: { appId: string }) {
       const res = await fetch(`/api/candidate/applications/${appId}/analyze${refresh ? '?refresh=1' : ''}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'Analysis failed')
-      setResult(json.result)
+      
+      // Add debug logging to see the data structure
+      console.log('🔍 CV Analysis API Response:', json)
+      console.log('🔍 Technical Skills Structure:', json.result?.technical_skills)
+      console.log('🔍 Key Highlights Structure:', json.result?.key_highlights)
+      
+      // Validate and sanitize the result before setting state
+      const sanitizedResult = sanitizeAnalysisResult(json.result)
+      console.log('🔧 Sanitized Technical Skills:', sanitizedResult.technical_skills)
+      console.log('🔧 Sanitized Key Highlights:', sanitizedResult.key_highlights)
+      console.log('🔧 All skills are strings:', sanitizedResult.technical_skills?.every((s: any) => typeof s === 'string'))
+      console.log('🔧 All highlights are strings:', sanitizedResult.key_highlights?.every((s: any) => typeof s === 'string'))
+      setResult(sanitizedResult)
     } catch (e: any) {
       setError(e?.message || 'Analysis failed')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Function to sanitize analysis result
+  const sanitizeAnalysisResult = (result: any): Result => {
+    if (!result || typeof result !== 'object') {
+      return {}
+    }
+
+    // Helper function to sanitize any array to contain only strings
+    const sanitizeArray = (arr: any[]): string[] => {
+      if (!Array.isArray(arr)) return []
+      return arr.map((item: any, index: number) => {
+        try {
+          if (typeof item === 'string') {
+            return item
+          } else if (item && typeof item === 'object') {
+            // Extract first string value from object
+            const values = Object.values(item).filter(v => typeof v === 'string')
+            return values.length > 0 ? String(values[0]) : `Item ${index + 1}`
+          } else {
+            return String(item || `Item ${index + 1}`)
+          }
+        } catch (e) {
+          return `Item ${index + 1}`
+        }
+      }).filter((item: string) => item && item.trim().length > 0)
+    }
+
+    // AGGRESSIVE sanitization - force everything to strings
+    const sanitizedTechnicalSkills = sanitizeArray(result.technical_skills || [])
+    const sanitizedKeyHighlights = sanitizeArray(result.key_highlights || [])
+    const sanitizedStandoutProjects = sanitizeArray(result.standout_projects || [])
+    const sanitizedInterviewQuestions = sanitizeArray(result.interview_questions || [])
+    const sanitizedPotentialConcerns = sanitizeArray(result.potential_concerns || [])
+
+    return {
+      ...result,
+      technical_skills: sanitizedTechnicalSkills,
+      key_highlights: sanitizedKeyHighlights,
+      standout_projects: sanitizedStandoutProjects,
+      interview_questions: sanitizedInterviewQuestions,
+      potential_concerns: sanitizedPotentialConcerns
     }
   }
 
@@ -74,13 +138,28 @@ export function CvAnalysis({ appId }: { appId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button size="sm" variant="secondary" onClick={() => run(false)} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-          Analiza CV (AI)
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => run(true)} disabled={loading}>Odśwież</Button>
-      </div>
+      {/* Tylko przycisk odświeżania, jeśli analiza już istnieje */}
+      {result && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
+          <Button size="sm" variant="outline" onClick={() => run(true)} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Ponów analizę
+          </Button>
+        </div>
+      )}
+      
+      {/* Stan ładowania dla pierwszego wywołania */}
+      {loading && !result && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Analizuję CV...</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {error && (
         <Card className="border-red-200 bg-red-50">
@@ -89,6 +168,10 @@ export function CvAnalysis({ appId }: { appId: string }) {
               <AlertCircle className="h-4 w-4" />
               <span className="text-sm">{error}</span>
             </div>
+            <Button size="sm" variant="outline" onClick={() => run(false)} className="mt-3">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Spróbuj ponownie
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -125,7 +208,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                     </h4>
                     <ul className="list-disc pl-5 text-sm space-y-1">
                       {result.key_highlights.map((highlight, i) => (
-                        <li key={i}>{highlight}</li>
+                        <li key={i}>{String(highlight || `Highlight ${i + 1}`)}</li>
                       ))}
                     </ul>
                   </div>
@@ -147,18 +230,12 @@ export function CvAnalysis({ appId }: { appId: string }) {
                 <CardContent>
                   <div className="flex flex-wrap gap-1.5">
                     {result.technical_skills.map((skill, index) => {
-                      // Obsługa różnych formatów: string lub obiekt
-                      const skillName = typeof skill === 'string' ? skill : skill.skill
-                      const isMatched = typeof skill === 'object' && skill.match
+                      // Ensure skill is always a string
+                      const skillText = String(skill || `Skill ${index + 1}`).trim()
                       
                       return (
-                        <Badge 
-                          key={`${skillName}-${index}`} 
-                          variant={isMatched ? "default" : "secondary"} 
-                          className={`text-xs ${isMatched ? 'bg-green-100 text-green-800 border-green-200' : ''}`}
-                        >
-                          {skillName}
-                          {isMatched && ' ✓'}
+                        <Badge key={`skill-${index}`} variant="secondary" className="text-xs">
+                          {skillText}
                         </Badge>
                       )
                     })}
@@ -202,7 +279,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
               <CardContent>
                 <ul className="list-disc pl-5 text-sm space-y-2">
                   {result.standout_projects.map((project, i) => (
-                    <li key={i}>{project}</li>
+                    <li key={i}>{String(project || `Project ${i + 1}`)}</li>
                   ))}
                 </ul>
               </CardContent>
@@ -225,7 +302,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                       <span className="bg-blue-200 text-blue-800 text-xs font-medium px-2 py-1 rounded-full mt-0.5">
                         {i + 1}
                       </span>
-                      <span className="text-sm text-blue-900">{question}</span>
+                      <span className="text-sm text-blue-900">{String(question || `Question ${i + 1}`)}</span>
                     </li>
                   ))}
                 </ul>
@@ -245,7 +322,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
               <CardContent>
                 <ul className="list-disc pl-5 text-sm space-y-1">
                   {result.potential_concerns.map((concern, i) => (
-                    <li key={i} className="text-amber-900">{concern}</li>
+                    <li key={i} className="text-amber-900">{String(concern || `Concern ${i + 1}`)}</li>
                   ))}
                 </ul>
               </CardContent>
