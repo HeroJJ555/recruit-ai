@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
-import { Eye, FileDown, MoreVertical } from "lucide-react"
+import { Eye, FileDown, MoreVertical, Clock, Eye as EyeIcon, Calendar, CheckCircle, XCircle, MinusCircle, Sparkles, MessageCircle } from "lucide-react"
 import Link from "next/link"
 import { BulkActionsModal, SingleActionModal } from "@/components/recruiter/actions-modals"
 import { CreateMeetingDialog } from "@/components/recruiter/create-meeting-dialog"
@@ -19,6 +19,7 @@ type AppItem = {
   experience: string
   createdAt: string | Date
   cvFileName?: string | null
+  status?: string
 }
 
 export function CandidatesTable({ items }: { items: AppItem[] }) {
@@ -43,9 +44,24 @@ export function CandidatesTable({ items }: { items: AppItem[] }) {
     setSelected(s)
   }
 
+  const toPrismaStatus = (s: string): string => {
+    switch (s) {
+      case 'rejected': return 'REJECTED'
+      case 'waiting': return 'WAITING'
+      case 'interview': return 'INTERVIEW'
+      case 'hired': return 'HIRED'
+      case 'withdrawn': return 'WITHDRAWN'
+      default: return 'PENDING'
+    }
+  }
+
   const onUpdated = (status: string) => {
-    // Optimistic update; we only store status client-side if present
-    setSelected(new Set())
+    const prismaStatus = toPrismaStatus(status)
+    if (selected.size > 0) {
+      const ids = new Set(selected)
+      setRows(prev => prev.map(r => ids.has(r.id) ? { ...r, status: prismaStatus } : r))
+      setSelected(new Set())
+    }
   }
 
   const openSchedule = (id: string) => {
@@ -54,6 +70,24 @@ export function CandidatesTable({ items }: { items: AppItem[] }) {
   }
 
   const fmtDate = (d: string | Date) => new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeStyle: "short" }).format(new Date(d))
+
+  const statusBadge = (s?: string) => {
+    const v = String(s || '').toUpperCase()
+    const base = 'px-2 py-0.5 rounded-full text-xs font-medium border'
+    switch (v) {
+      case 'PENDING': return <span className={`${base} bg-amber-50 text-amber-700 border-amber-200 inline-flex items-center gap-1`}><Sparkles className="h-3.5 w-3.5"/> Nowe</span>
+      case 'WAITING': return <span className={`${base} bg-gray-50 text-gray-700 border-gray-200 inline-flex items-center gap-1`}><Clock className="h-3.5 w-3.5"/> Oczekuje</span>
+      case 'REVIEWED': return <span className={`${base} bg-blue-50 text-blue-700 border-blue-200 inline-flex items-center gap-1`}><EyeIcon className="h-3.5 w-3.5"/> Przejrzane</span>
+      case 'CONTACTED': return <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200 inline-flex items-center gap-1`}><MessageCircle className="h-3.5 w-3.5"/> Skontaktowano</span>
+      case 'INTERVIEW': return <span className={`${base} bg-indigo-50 text-indigo-700 border-indigo-200 inline-flex items-center gap-1`}><Calendar className="h-3.5 w-3.5"/> Rozmowa</span>
+      case 'INTERVIEW_SCHEDULED': return <span className={`${base} bg-indigo-50 text-indigo-700 border-indigo-200 inline-flex items-center gap-1`}><Calendar className="h-3.5 w-3.5"/> Zaplanowano rozmowę</span>
+      case 'INTERVIEW_COMPLETED': return <span className={`${base} bg-violet-50 text-violet-700 border-violet-200 inline-flex items-center gap-1`}><CheckCircle className="h-3.5 w-3.5"/> Rozmowa zakończona</span>
+      case 'HIRED': return <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200 inline-flex items-center gap-1`}><CheckCircle className="h-3.5 w-3.5"/> Zatrudniony</span>
+      case 'REJECTED': return <span className={`${base} bg-rose-50 text-rose-700 border-rose-200 inline-flex items-center gap-1`}><XCircle className="h-3.5 w-3.5"/> Odrzucony</span>
+      case 'WITHDRAWN': return <span className={`${base} bg-zinc-50 text-zinc-700 border-zinc-200 inline-flex items-center gap-1`}><MinusCircle className="h-3.5 w-3.5"/> Wycofany</span>
+      default: return <span className={`${base} bg-gray-50 text-gray-700 border-gray-200`}>{s || 'Status'}</span>
+    }
+  }
 
   return (
     <Card>
@@ -81,6 +115,7 @@ export function CandidatesTable({ items }: { items: AppItem[] }) {
                 <TableHead>Imię i nazwisko</TableHead>
                 <TableHead>Stanowisko</TableHead>
                 <TableHead>Doświadczenie</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Akcje</TableHead>
@@ -95,6 +130,7 @@ export function CandidatesTable({ items }: { items: AppItem[] }) {
                   <TableCell className="font-medium">{a.firstName} {a.lastName}</TableCell>
                   <TableCell>{a.position}</TableCell>
                   <TableCell className="capitalize">{a.experience}</TableCell>
+                  <TableCell>{statusBadge(a.status)}</TableCell>
                   <TableCell>{a.email}</TableCell>
                   <TableCell>{fmtDate(a.createdAt)}</TableCell>
                   <TableCell className="text-right">
@@ -139,7 +175,11 @@ export function CandidatesTable({ items }: { items: AppItem[] }) {
         open={Boolean(singleOpen)}
         onOpenChange={(o) => { if (!o) setSingleOpen(null) }}
         candidateId={singleOpen || ''}
-        onDone={() => setSingleOpen(null)}
+        onDone={(st) => {
+          const prismaStatus = toPrismaStatus(st)
+          if (singleOpen) setRows(prev => prev.map(r => r.id === singleOpen ? { ...r, status: prismaStatus } : r))
+          setSingleOpen(null)
+        }}
         onScheduleInterview={openSchedule}
       />
       <CreateMeetingDialog

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -31,6 +32,7 @@ export function SingleActionModal({
     if (action === 'interview') {
       onOpenChange(false)
       onScheduleInterview?.(candidateId)
+      toast.info('Otworzono planowanie spotkania')
       return
     }
     setSubmitting(true)
@@ -46,8 +48,11 @@ export function SingleActionModal({
       }
       onDone?.(action)
       onOpenChange(false)
+      toast.success('Zaktualizowano status kandydata')
     } catch (e) {
       console.error(e)
+      const msg = (e as any)?.message || 'Nie udało się zaktualizować statusu'
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -107,6 +112,7 @@ export function BulkActionsModal({
     if (action === 'interview' && candidateIds.length === 1) {
       onOpenChange(false)
       onScheduleInterview?.(candidateIds[0])
+      toast.info('Otworzono planowanie spotkania')
       return
     }
     setSubmitting(true)
@@ -122,8 +128,11 @@ export function BulkActionsModal({
       }
       onUpdated?.(action)
       onOpenChange(false)
+      toast.success('Zaktualizowano status wybranych kandydatów')
     } catch (e) {
       console.error(e)
+      const msg = (e as any)?.message || 'Nie udało się wykonać akcji masowej'
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }

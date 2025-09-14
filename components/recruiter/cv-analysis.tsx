@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, Sparkles, MessageSquare, Award, Briefcase, User, AlertCircle, RefreshCw } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Result = {
   summary?: string
@@ -37,14 +38,8 @@ export function CvAnalysis({ appId }: { appId: string }) {
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Automatyczne uruchomienie analizy przy załadowaniu komponentu
-  useEffect(() => {
-    // Reset state on app change and run fresh analysis
-    setResult(null)
-    setError(null)
-    run(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId])
+  // Nie ładuj automatycznie — poprawa czasu ładowania profilu
+  // Użytkownik ręcznie wczyta zapisany wynik lub uruchomi analizę
 
   const run = async (refresh = false) => {
     setLoading(true)
@@ -53,18 +48,8 @@ export function CvAnalysis({ appId }: { appId: string }) {
       const res = await fetch(`/api/candidate/applications/${appId}/analyze${refresh ? '?refresh=1' : ''}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'Analysis failed')
-      
-      // Add debug logging to see the data structure
-      console.log('🔍 CV Analysis API Response:', json)
-      console.log('🔍 Technical Skills Structure:', json.result?.technical_skills)
-      console.log('🔍 Key Highlights Structure:', json.result?.key_highlights)
-      
-      // Validate and sanitize the result before setting state
+      // Sanitize and set
       const sanitizedResult = sanitizeAnalysisResult(json.result)
-      console.log('🔧 Sanitized Technical Skills:', sanitizedResult.technical_skills)
-      console.log('🔧 Sanitized Key Highlights:', sanitizedResult.key_highlights)
-      console.log('🔧 All skills are strings:', sanitizedResult.technical_skills?.every((s: any) => typeof s === 'string'))
-      console.log('🔧 All highlights are strings:', sanitizedResult.key_highlights?.every((s: any) => typeof s === 'string'))
       setResult(sanitizedResult)
     } catch (e: any) {
       setError(e?.message || 'Analysis failed')
@@ -79,32 +64,74 @@ export function CvAnalysis({ appId }: { appId: string }) {
       return {}
     }
 
-    // Helper function to sanitize any array to contain only strings
-    const sanitizeArray = (arr: any[]): string[] => {
+    // Helper: map level to PL label
+    const levelToPL = (lvl?: string | number) => {
+      if (typeof lvl === 'number') {
+        if (lvl >= 80) return 'wysoki'
+        if (lvl >= 50) return 'średni'
+        return 'niski'
+      }
+      const s = String(lvl || '').toLowerCase()
+      if (['high', 'wysoki', 'strong'].includes(s)) return 'wysoki'
+      if (['medium', 'średni', 'mid'].includes(s)) return 'średni'
+      if (['low', 'niski', 'weak'].includes(s)) return 'niski'
+      return ''
+    }
+
+    // Helper function to sanitize any array of generic highlights to strings
+    const sanitizeHighlights = (arr: any[]): string[] => {
       if (!Array.isArray(arr)) return []
       return arr.map((item: any, index: number) => {
         try {
           if (typeof item === 'string') {
             return item
           } else if (item && typeof item === 'object') {
-            // Extract first string value from object
-            const values = Object.values(item).filter(v => typeof v === 'string')
-            return values.length > 0 ? String(values[0]) : `Item ${index + 1}`
+            // Try common keys first
+            const text = item.text || item.title || item.highlight || item.summary || item.description
+            const lvl = levelToPL(item.level || item.impact || item.priority)
+            if (text && lvl) return `${String(text)} — ${lvl}`
+            if (text) return String(text)
+            // Fallback: join string-ish values
+            const values = Object.values(item).filter(v => typeof v === 'string') as string[]
+            return values.length > 0 ? values[0] : `Pozycja ${index + 1}`
           } else {
-            return String(item || `Item ${index + 1}`)
+            return String(item || `Pozycja ${index + 1}`)
           }
         } catch (e) {
-          return `Item ${index + 1}`
+          return `Pozycja ${index + 1}`
         }
       }).filter((item: string) => item && item.trim().length > 0)
     }
 
-    // AGGRESSIVE sanitization - force everything to strings
-    const sanitizedTechnicalSkills = sanitizeArray(result.technical_skills || [])
-    const sanitizedKeyHighlights = sanitizeArray(result.key_highlights || [])
-    const sanitizedStandoutProjects = sanitizeArray(result.standout_projects || [])
-    const sanitizedInterviewQuestions = sanitizeArray(result.interview_questions || [])
-    const sanitizedPotentialConcerns = sanitizeArray(result.potential_concerns || [])
+    // Helper function specialized for skills objects
+    const sanitizeSkills = (arr: any[]): string[] => {
+      if (!Array.isArray(arr)) return []
+      return arr.map((it: any, idx: number) => {
+        try {
+          if (typeof it === 'string') return it
+          if (it && typeof it === 'object') {
+            const name = it.name || it.skill || it.technology || it.tool
+            const lvl = levelToPL(it.level || it.proficiency || it.rating)
+            const years = typeof it.years === 'number' && it.years > 0 ? `${it.years} lat` : ''
+            if (name && (lvl || years)) return `${name} ${lvl ? `— ${lvl}` : ''}${years ? (lvl ? ", " : " ") + years : ''}`
+            if (name) return String(name)
+            const values = Object.values(it).filter(v => typeof v === 'string') as string[]
+            return values[0] || `Umiejętność ${idx + 1}`
+          }
+          return String(it || `Umiejętność ${idx + 1}`)
+        } catch {
+          return `Umiejętność ${idx + 1}`
+        }
+      }).filter((s: string) => s && s.trim().length > 0)
+    }
+
+    // Sanitization
+    const sanitizedTechnicalSkills = sanitizeSkills(result.technical_skills || [])
+    // Kluczowe atuty usuwamy z UI — utrzymujemy transformacje dla spójności, ale nie renderujemy
+    const sanitizedKeyHighlights = [] as string[]
+    const sanitizedStandoutProjects = sanitizeHighlights(result.standout_projects || [])
+    const sanitizedInterviewQuestions = sanitizeHighlights(result.interview_questions || [])
+    const sanitizedPotentialConcerns = sanitizeHighlights(result.potential_concerns || [])
 
     return {
       ...result,
@@ -138,16 +165,38 @@ export function CvAnalysis({ appId }: { appId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Tylko przycisk odświeżania, jeśli analiza już istnieje */}
-      {result && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
+        {!result ? (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={async () => {
+              setLoading(true); setError(null)
+              try {
+                const res = await fetch(`/api/candidate/applications/${appId}/analysis`)
+                if (!res.ok) throw new Error((await res.json()).error || 'Brak zapisanej analizy')
+                const json = await res.json()
+                setResult(sanitizeAnalysisResult(json.result))
+              } catch (e: any) {
+                setError(e?.message || 'Brak zapisanej analizy')
+              } finally {
+                setLoading(false)
+              }
+            }} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Wczytaj zapisaną analizę
+            </Button>
+            <Button size="sm" onClick={() => run(false)} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Uruchom analizę
+            </Button>
+          </div>
+        ) : (
           <Button size="sm" variant="outline" onClick={() => run(true)} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Ponów analizę
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       
       {/* Stan ładowania dla pierwszego wywołania */}
       {loading && !result && (
@@ -187,7 +236,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                     <User className="h-5 w-5" />
                     Podsumowanie
                   </CardTitle>
-                  {result.compatibility_score && (
+                  {typeof result.compatibility_score === 'number' && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Dopasowanie:</span>
                       <span className={`text-lg font-bold ${getScoreColor(result.compatibility_score)}`}>
@@ -199,20 +248,16 @@ export function CvAnalysis({ appId }: { appId: string }) {
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-6 mb-4">{result.summary}</p>
+              {typeof result.compatibility_score === 'number' && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden mb-4">
+                  <div
+                    className="h-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400"
+                    style={{ width: `${Math.max(0, Math.min(100, result.compatibility_score))}%` }}
+                  />
+                </div>
+              )}
                 
-                {result.key_highlights && result.key_highlights.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                      <Award className="h-4 w-4" />
-                      Kluczowe atuty
-                    </h4>
-                    <ul className="list-disc pl-5 text-sm space-y-1">
-                      {result.key_highlights.map((highlight, i) => (
-                        <li key={i}>{String(highlight || `Highlight ${i + 1}`)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {/* Kluczowe atuty — usunięte zgodnie z prośbą */}
               </CardContent>
             </Card>
           )}
@@ -228,18 +273,27 @@ export function CvAnalysis({ appId }: { appId: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <TooltipProvider>
                   <div className="flex flex-wrap gap-1.5">
                     {result.technical_skills.map((skill, index) => {
                       // Ensure skill is always a string
                       const skillText = String(skill || `Skill ${index + 1}`).trim()
-                      
+                      const hint = 'Umiejętność z CV / analizy AI'
                       return (
-                        <Badge key={`skill-${index}`} variant="secondary" className="text-xs">
-                          {skillText}
-                        </Badge>
+                        <Tooltip key={`skill-${index}`}>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-xs">
+                              {skillText}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <span>{hint}</span>
+                          </TooltipContent>
+                        </Tooltip>
                       )
                     })}
                   </div>
+                  </TooltipProvider>
                 </CardContent>
               </Card>
             )}
@@ -257,7 +311,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                   )}
                   {result.experience_summary.level && (
                     <div className="text-sm">
-                      <span className="text-muted-foreground">Poziom:</span> {result.experience_summary.level}
+                      <span className="text-muted-foreground">Poziom:</span> {String(result.experience_summary.level).slice(0,1).toUpperCase() + String(result.experience_summary.level).slice(1)}
                     </div>
                   )}
                   {result.experience_summary.key_roles && result.experience_summary.key_roles.length > 0 && (

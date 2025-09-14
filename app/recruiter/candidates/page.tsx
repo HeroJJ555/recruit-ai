@@ -13,24 +13,21 @@ export default async function RecruiterCandidatesPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect("/auth/signin")
 
-  // Typing fallback: prisma client here may have lost 'status' in generated select type, so use broad fetch and cast
-  const applications = await prisma.candidateApplication.findMany({
+  const applications = await prisma.candidateApplication.findMany(({ 
     orderBy: { createdAt: "desc" },
-    take: 120,
-  }) as any[]
-
-  // Define which statuses count as already processed / archival
-  const processedStatuses = new Set([
-    'REJECTED',
-    'CONTACTED',
-    'REVIEWED',
-    'HIRED',
-    'INTERVIEW_COMPLETED',
-    'WITHDRAWN'
-  ])
-
-  const active = applications.filter(a => !processedStatuses.has((a as any).status))
-  const archived = applications.filter(a => processedStatuses.has((a as any).status))
+    take: 50,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      position: true,
+      experience: true,
+      status: true,
+      createdAt: true,
+      cvFileName: true,
+    },
+  } as any))
 
   return (
     <div className="flex h-screen bg-background">
