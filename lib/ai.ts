@@ -8,7 +8,9 @@ function safeJSONParse<T = any>(s: string): T | null {
 
 async function callGradio(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
   try {
+    console.log('Connecting to Gradio client: NotASI/Llama-3.1-Storm-8B')
     const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
+    console.log('Gradio client connected successfully')
     
     // Combine system and user messages for Gradio format
     const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
@@ -18,6 +20,7 @@ async function callGradio(messages: ChatMessage[], opts?: { model?: string; json
       ? `${userMessage}\n\nPlease respond with valid JSON only.`
       : userMessage
 
+    console.log('Sending request to Gradio with prompt length:', prompt.length)
     const result = await client.predict("/chat", {
       message: prompt,
       system_prompt: systemMessage,
@@ -28,9 +31,12 @@ async function callGradio(messages: ChatMessage[], opts?: { model?: string; json
       penalty: 1.1,
     })
 
+    console.log('Gradio prediction completed, result type:', typeof result, 'data type:', typeof result.data)
     const content = Array.isArray(result.data) ? (result.data[0] || '') : String(result.data || '')
+    console.log('Extracted content length:', content.length)
     return content
   } catch (error) {
+    console.error('Gradio error details:', error)
     throw new Error(`Gradio error: ${error}`)
   }
 }
@@ -75,7 +81,10 @@ async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json
 }
 
 export async function chatJSON(prompt: string) {
+  console.log('=== chatJSON called ===')
   const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'gradio' // Default to Gradio (free)
+  console.log('AI Provider:', provider)
+  
   const messages: ChatMessage[] = [
     { role: 'system', content: 'You are a helpful assistant. Always reply with strict JSON only.' },
     { role: 'user', content: prompt }
@@ -86,26 +95,41 @@ export async function chatJSON(prompt: string) {
   // Try providers in order: Gradio (free) -> Ollama (free local) -> OpenAI (paid) -> Heuristic (fallback)
   if (provider === 'gradio') {
     try {
+      console.log('Attempting Gradio connection...')
       content = await callGradio(messages, { json: true })
+      console.log('Gradio response length:', content.length)
     } catch (error) {
       console.error('Gradio failed, trying Ollama:', error)
       if (process.env.OLLAMA_HOST) {
+        console.log('Attempting Ollama fallback...')
         content = await callOllama(messages, { json: true })
+        console.log('Ollama response length:', content.length)
       } else {
+        console.log('No Ollama host configured, throwing error')
         throw error
       }
     }
   } else if (provider === 'ollama' && process.env.OLLAMA_HOST) {
+    console.log('Using Ollama provider...')
     content = await callOllama(messages, { json: true })
+    console.log('Ollama response length:', content.length)
   } else if (provider === 'openai' && process.env.OPENAI_API_KEY) {
+    console.log('Using OpenAI provider...')
     content = await callOpenAI(messages, { json: true })
+    console.log('OpenAI response length:', content.length)
   } else {
+    console.log('No AI provider available, falling back to heuristic analysis')
     // Fallback to heuristic analysis
     throw new Error('No AI provider available, falling back to heuristic analysis')
   }
   
+  console.log('Raw AI response first 200 chars:', content.substring(0, 200))
   const json = safeJSONParse(content)
-  if (!json) throw new Error('AI did not return JSON')
+  if (!json) {
+    console.error('AI did not return valid JSON, content:', content)
+    throw new Error('AI did not return JSON')
+  }
+  console.log('JSON parsing successful, keys:', Object.keys(json))
   return json
 }
 
