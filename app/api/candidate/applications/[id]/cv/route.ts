@@ -25,8 +25,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 })
 
   let key: string | null = null
-  if (files && files.length > 0) {
-    const latest = files[0]
+  // Filter out analysis.json files - we only want CV files
+  const cvFiles = files?.filter(file => 
+    file.name && !file.name.includes('analysis.json')
+  ) || []
+  
+  if (cvFiles.length > 0) {
+    const latest = cvFiles[0]
     key = `${prefix}/${latest.name}`
   } else {
     // 2) Fallback: try to find by cvFileName anywhere under applications/

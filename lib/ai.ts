@@ -134,37 +134,129 @@ export async function chatJSON(prompt: string) {
 }
 
 export function heuristicAnalysis(text: string) {
+  console.log('Running enhanced heuristic analysis...')
   const lower = text.toLowerCase()
+  
+  // Enhanced skills detection
+  const skillPatterns = [
+    'javascript', 'typescript', 'react', 'vue', 'angular', 'node', 'express', 
+    'python', 'django', 'flask', 'java', 'spring', 'c#', 'c++', 'c', 'go', 'rust',
+    'php', 'laravel', 'ruby', 'rails', 'swift', 'kotlin', 'dart', 'flutter',
+    'html', 'css', 'sass', 'scss', 'tailwind', 'bootstrap',
+    'sql', 'postgresql', 'mysql', 'mongodb', 'redis', 'elasticsearch',
+    'docker', 'kubernetes', 'aws', 'azure', 'gcp', 'heroku', 'vercel',
+    'git', 'github', 'gitlab', 'jenkins', 'ci/cd', 'terraform',
+    'graphql', 'rest', 'api', 'microservices', 'websockets',
+    'next.js', 'nextjs', 'nest.js', 'nestjs', 'nuxt', 'gatsby',
+    'webpack', 'vite', 'babel', 'eslint', 'prettier',
+    'figma', 'sketch', 'photoshop', 'illustrator'
+  ]
+  
   const maybeSkills = Array.from(new Set(
-    lower
-      .split(/[^a-zA-Z0-9+#.\-]/)
-      .filter(Boolean)
-      .filter(w => ['javascript','typescript','react','node','python','java','c#','c++','docker','kubernetes','aws','gcp','azure','sql','nosql','graphql','next','nestjs','django','spring','go','rust','redis','rabbitmq','kafka'].includes(w))
+    skillPatterns.filter(skill => 
+      lower.includes(skill) || lower.includes(skill.replace(/[.\-]/g, ''))
+    )
   ))
-  const seniority = ((): string | undefined => {
-    if (/(\bsenior\b|\bsr\b)/.test(lower)) return 'senior'
-    if (/(\bmid\b|\bregular\b)/.test(lower)) return 'mid'
-    if (/(\bjunior\b|\bjr\b)/.test(lower)) return 'junior'
-    if (/lead|principal|staff/.test(lower)) return 'lead'
-    return undefined
+  
+  // Experience years detection
+  const yearMatches = text.match(/(\d+)\s*(?:years?|lat|roku|lata)/gi) || []
+  const experienceYears = yearMatches
+    .map(match => parseInt(match.match(/\d+/)?.[0] || '0'))
+    .filter(num => num > 0 && num <= 30)
+    .reduce((max, current) => Math.max(max, current), 0)
+  
+  // Seniority detection (enhanced)
+  const seniority = ((): string => {
+    if (/(\bsenior\b|\bsr\.?\b|\bstarszy\b)/.test(lower)) return 'senior'
+    if (/(\bmid\b|\bmiddle\b|\bregular\b|\bspecjalista\b)/.test(lower)) return 'mid'
+    if (/(\bjunior\b|\bjr\.?\b|\bmłodszy\b|\bstażysta\b)/.test(lower)) return 'junior'
+    if (/(\blead\b|\bprincipal\b|\bstaff\b|\barchitect\b|\bkierownik\b|\bteam lead\b)/.test(lower)) return 'lead'
+    
+    // Infer from experience
+    if (experienceYears >= 7) return 'senior'
+    if (experienceYears >= 3) return 'mid'
+    if (experienceYears >= 1) return 'junior'
+    return 'junior'
   })()
-  const roles = Array.from(new Set([
-    /frontend/.test(lower) ? 'frontend developer' : undefined,
-    /backend/.test(lower) ? 'backend developer' : undefined,
-    /full[- ]?stack/.test(lower) ? 'fullstack developer' : undefined,
-    /data (engineer|scientist)/.test(lower) ? 'data' : undefined,
-    /devops|sre/.test(lower) ? 'devops' : undefined,
-  ].filter(Boolean) as string[]))
+  
+  // Role detection (enhanced)
+  const rolePatterns = [
+    { pattern: /frontend|front-end|ui|user interface/i, role: 'Frontend Developer' },
+    { pattern: /backend|back-end|server|api/i, role: 'Backend Developer' },
+    { pattern: /full[- ]?stack|fullstack/i, role: 'Fullstack Developer' },
+    { pattern: /mobile|android|ios|react native|flutter/i, role: 'Mobile Developer' },
+    { pattern: /devops|sre|infrastructure|deployment/i, role: 'DevOps Engineer' },
+    { pattern: /data engineer|big data|etl/i, role: 'Data Engineer' },
+    { pattern: /data scientist|machine learning|ml|ai/i, role: 'Data Scientist' },
+    { pattern: /qa|quality assurance|tester|testing/i, role: 'QA Engineer' },
+    { pattern: /ux|user experience|ui\/ux|product design/i, role: 'UX/UI Designer' },
+    { pattern: /project manager|pm|scrum master/i, role: 'Project Manager' }
+  ]
+  
+  const roles = rolePatterns
+    .filter(({ pattern }) => pattern.test(text))
+    .map(({ role }) => role)
+  
+  // Education detection
+  const educationPatterns = [
+    /(?:university|uniwersytet|uczelnia|college)\s+(?:of\s+)?([^,.\n]+)/gi,
+    /(?:bachelor|master|phd|mgr|inż|dr)\s+(?:of\s+|in\s+)?([^,.\n]+)/gi,
+    /(?:computer science|informatyka|engineering|inżynieria)/gi
+  ]
+  
+  const education = []
+  for (const pattern of educationPatterns) {
+    const matches = text.match(pattern) || []
+    education.push(...matches.map(match => match.trim()))
+  }
+  
+  // Languages detection
+  const languagePatterns = [
+    /(?:english|angielski|język angielski)[:\s]*([^\n,]*)/gi,
+    /(?:polish|polski|język polski)[:\s]*([^\n,]*)/gi,
+    /(?:german|niemiecki|język niemiecki)[:\s]*([^\n,]*)/gi,
+    /(?:french|francuski|język francuski)[:\s]*([^\n,]*)/gi,
+    /(?:spanish|hiszpański|język hiszpański)[:\s]*([^\n,]*)/gi
+  ]
+  
+  const languages = []
+  for (const pattern of languagePatterns) {
+    const matches = text.match(pattern) || []
+    languages.push(...matches.map(match => match.trim()))
+  }
+  
+  // Projects detection
+  const projectLines = text.split('\n')
+    .filter(line => 
+      /project|projekt|application|app|system|platforma|portal/i.test(line) &&
+      line.length > 20 && line.length < 200
+    )
+    .slice(0, 3)
+  
+  // Summary generation
+  const name = text.match(/(?:^|\n)\s*([A-ZŚĆŻŹŁĄĘŃ][a-zśćżźłąęń]+\s+[A-ZŚĆŻŹŁĄĘŃ][a-zśćżźłąęń]+)/)?.[1] || 'Kandydat'
+  const primaryRole = roles[0] || 'Developer'
+  const topSkills = maybeSkills.slice(0, 3).join(', ')
+  
+  const summary = `${name} - ${seniority} ${primaryRole}${experienceYears ? ` z ${experienceYears} latami doświadczenia` : ''}${topSkills ? `. Główne umiejętności: ${topSkills}` : ''}.`
+  
+  console.log('Heuristic analysis completed with:', {
+    skills: maybeSkills.length,
+    roles: roles.length,
+    experienceYears,
+    seniority
+  })
+  
   return {
-    summary: undefined,
+    summary,
     key_skills: maybeSkills,
-    total_experience_years: undefined,
+    total_experience_years: experienceYears || 0,
     seniority,
-    top_roles: roles,
-    education: [],
-    languages: [],
-    notable_projects: [],
-    risks: [],
+    top_roles: roles.length > 0 ? roles : [primaryRole],
+    education: Array.from(new Set(education)).slice(0, 3),
+    languages: Array.from(new Set(languages)).slice(0, 5),
+    notable_projects: projectLines,
+    risks: maybeSkills.length < 3 ? ['Ograniczona liczba zidentyfikowanych umiejętności technicznych'] : [],
   }
 }
 
