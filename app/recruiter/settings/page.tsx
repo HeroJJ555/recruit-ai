@@ -8,7 +8,6 @@ import ClientSettingsTabs from "./settingsTabs"
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/auth/signin')
-  // Always fetch the freshest user profile from DB so updates (name/image) show immediately after router.refresh
   let dbUser = null
   if (session.user?.email) {
     try {
@@ -17,7 +16,6 @@ export default async function SettingsPage() {
         select: { name: true, email: true, image: true }
       })
     } catch {
-      // swallow – fall back to session values
     }
   }
   const user = {

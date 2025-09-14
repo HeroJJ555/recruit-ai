@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { queueCandidateStatus, loadCachedStatuses } from '@/lib/candidate-status-sync';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -155,42 +156,13 @@ export default function MessagesContent() {
     if (selectedCandidate) applyTemplate(value, selectedCandidate);
   };
 
-  const statusQueueRef = useRef<Record<string, Candidate['status']>>({})
-  const debounceRef = useRef<number | null>(null)
-
-  const flushStatuses = async () => {
-    const queue = statusQueueRef.current
-    statusQueueRef.current = {}
-    const entries = Object.entries(queue)
-    for (const [id, status] of entries) {
-      try {
-        await fetch(`/api/recruiter/candidates/${id}/status`, {
-          method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: status.toUpperCase() })
-        })
-      } catch (e) {
-        console.error('Persist status failed', e)
-      }
-    }
-    // Persist snapshot locally for resilience
-    try { localStorage.setItem('candidate-status-cache', JSON.stringify({ ts: Date.now(), statuses: queue })) } catch {}
-  }
-
-  const scheduleFlush = () => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(flushStatuses, 800)
-  }
+  // removed local queueing; using shared util
 
   // Load cached statuses (in case server fetch route didn't reflect quick changes yet)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('candidate-status-cache')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        const map: Record<string,string> = parsed.statuses || {}
-        setCandidates(prev => prev.map(c => map[c.id] ? { ...c, status: map[c.id] as any } : c))
-      }
+      const map = loadCachedStatuses() as Record<string,string>
+      setCandidates(prev => prev.map(c => map[c.id] ? { ...c, status: map[c.id] as any } : c))
     } catch {}
   }, [])
 
@@ -208,8 +180,7 @@ export default function MessagesContent() {
     }
     if (nextStatus !== candidate.status) {
       setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, status: nextStatus } : c));
-      statusQueueRef.current[candidate.id] = nextStatus
-      scheduleFlush()
+      queueCandidateStatus(candidate.id, nextStatus)
     }
   };
 
@@ -301,33 +272,12 @@ export default function MessagesContent() {
 
   const manualMove = (candidate: Candidate, target: 'contacted' | 'rejected') => {
     setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, status: target } : c));
-    statusQueueRef.current[candidate.id] = target
-    scheduleFlush()
+    queueCandidateStatus(candidate.id, target)
     if (selectedCandidate?.id === candidate.id) {
       setSelectedCandidate({ ...candidate, status: target });
     }
   };
-
-  // Flush on unmount / page hide
-  useEffect(() => {
-    const handler = () => {
-      if (Object.keys(statusQueueRef.current).length) {
-        // Fire and forget
-        navigator.sendBeacon && Object.entries(statusQueueRef.current).forEach(([id, status]) => {
-          try {
-            const blob = new Blob([JSON.stringify({ status: status.toUpperCase() })], { type: 'application/json' })
-            navigator.sendBeacon(`/api/recruiter/candidates/${id}/status`, blob)
-          } catch {}
-        })
-      }
-    }
-    window.addEventListener('beforeunload', handler)
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') handler() })
-    return () => {
-      handler()
-      window.removeEventListener('beforeunload', handler)
-    }
-  }, [])
+  // Removed custom unload flush (handled globally in sync util)
 
   return (
     <div className="p-6 space-y-6">

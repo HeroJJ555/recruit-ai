@@ -11,6 +11,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Sun, Moon, Monitor, Save, Mail, Send } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { broadcastUserProfile } from "@/lib/user-profile-sync"
 
 interface UserLite { name?: string | null; email?: string | null; image?: string | null }
 
@@ -214,7 +215,7 @@ function NotificationsSettings() {
   )
 }
 
-function ProfileForm({ name, image, onChange }: { name: string; image: string; onChange: (field: 'name' | 'image', value: string) => void }) {
+function ProfileForm({ name, image, onChange, firstName, lastName, onNameSplitChange, imageError }: { name: string; image: string; onChange: (field: 'name' | 'image', value: string) => void; firstName: string; lastName: string; onNameSplitChange: (which: 'first' | 'last', value: string) => void; imageError?: string | null }) {
   return (
     <Card>
       <CardHeader>
@@ -223,15 +224,27 @@ function ProfileForm({ name, image, onChange }: { name: string; image: string; o
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Imię</label>
+              <Input value={firstName} onChange={e => onNameSplitChange('first', e.target.value)} minLength={2} maxLength={60} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Nazwisko</label>
+              <Input value={lastName} onChange={e => onNameSplitChange('last', e.target.value)} minLength={2} maxLength={80} />
+            </div>
+          </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium">Imię / nazwa</label>
+            <label className="text-sm font-medium">Pełne imię i nazwisko / nazwa wyświetlana</label>
             <Input value={name} onChange={e => onChange('name', e.target.value)} minLength={2} maxLength={80} required />
+            <p className="text-xs text-muted-foreground">Limit 80 znaków (zgodnie z walidacją backend).</p>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">URL zdjęcia (opcjonalne)</label>
             <Input value={image} onChange={e => onChange('image', e.target.value)} placeholder="https://..." />
+            {imageError && <p className="text-xs text-destructive">{imageError}</p>}
           </div>
-          <p className="text-xs text-muted-foreground">Zmiany w profilu nie są zapisywane automatycznie.</p>
+          <p className="text-xs text-muted-foreground">Zmiany w polach są rozsyłane natychmiast lokalnie (optimistic), ale trwały zapis nastąpi po przycisku lub autosave.</p>
         </div>
       </CardContent>
     </Card>
@@ -249,24 +262,36 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
   const [initialImage, setInitialImage] = useState<string>(user.image || '')
   const [pendingName, setPendingName] = useState<string>(user.name || '')
   const [pendingImage, setPendingImage] = useState<string>(user.image || '')
+  const [firstName, setFirstName] = useState<string>(() => (user.name?.split(' ')[0] || ''))
+  const [lastName, setLastName] = useState<string>(() => {
+    if (!user.name) return ''
+    const parts = user.name.split(' ')
+    return parts.slice(1).join(' ')
+  })
   const autoSavedRef = useRef(false)
   const pathname = usePathname()
   const router = useRouter()
 
   // Derived flags (must be before callbacks using them)
+  // URL validation for image to avoid spamming API with invalid payloads
+  const isValidUrl = useCallback((val: string) => {
+    if (!val) return true
+    try { const u = new URL(val); return u.protocol === 'http:' || u.protocol === 'https:' } catch { return false }
+  }, [])
+
+  const imageError = pendingImage && pendingImage.trim().length > 0 && !isValidUrl(pendingImage.trim()) ? 'Nieprawidłowy URL' : null
+
   const profileDirty = pendingName !== initialName || pendingImage !== initialImage
   const appearanceDirty = pendingTheme !== (theme || 'system')
   const aiDirty = (initialTemp !== null && pendingTemp !== initialTemp)
   const dirty = profileDirty || appearanceDirty || aiDirty
-  const profileInvalid = pendingName.trim().length < 2 || pendingName.trim().length > 80
+  const profileInvalid = pendingName.trim().length < 2 || pendingName.trim().length > 80 || !!imageError
 
-  // Stable auto-save runner
   const runAutoSave = useCallback(() => {
     if (autoSavedRef.current) return
     if (!dirty || profileInvalid) return
     autoSavedRef.current = true
     try {
-      // Profile via beacon / keepalive fetch
       if (profileDirty) {
         const body = JSON.stringify({ name: pendingName.trim(), image: pendingImage.trim() || null })
         let sent = false
@@ -287,21 +312,21 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
         setInitialName(pendingName)
         setInitialImage(pendingImage)
       }
-      // Theme
+
       if (appearanceDirty) {
         setTheme(pendingTheme)
       }
-      // AI temperature
+
       if (aiDirty) {
         window.localStorage.setItem('ai-temp', String(pendingTemp))
         window.dispatchEvent(new CustomEvent('ai-settings:changed', { detail: { temperature: pendingTemp } }))
         setInitialTemp(pendingTemp)
       }
     } catch { /* swallow */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [dirty, profileInvalid, profileDirty, appearanceDirty, aiDirty, pendingName, pendingImage, pendingTheme, pendingTemp])
 
-  // Initialize pending values
+
   useEffect(() => {
     setPendingTheme(theme || 'system')
   }, [theme])
@@ -343,8 +368,7 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
     } finally { setSaving(false) }
   }
 
-  // Silent auto-save logic for navigation/tab close. Uses sendBeacon for profile to avoid blocking unload.
-  // Global listeners (browser events)
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const handleBeforeUnload = () => runAutoSave()
@@ -353,18 +377,16 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
     window.addEventListener('pagehide', handleBeforeUnload)
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
-      runAutoSave() // ensure save on component unmount (internal navigation)
+      runAutoSave()
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('pagehide', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [runAutoSave])
 
-  // Detect internal route change away from settings (App Router navigation)
   const prevPathRef = useRef(pathname)
   useEffect(() => {
     if (prevPathRef.current !== pathname) {
-      // Leaving settings page
       if (prevPathRef.current?.includes('/recruiter/settings')) {
         runAutoSave()
       }
@@ -403,10 +425,33 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
         </div>
         <div className="pt-4">
           <TabsContent value="profile" className="space-y-6">
-            <ProfileForm name={pendingName} image={pendingImage} onChange={(field, value) => {
-              if (field === 'name') setPendingName(value)
-              else setPendingImage(value)
-            }} />
+            <ProfileForm 
+              name={pendingName} 
+              image={pendingImage} 
+              firstName={firstName}
+              lastName={lastName}
+              imageError={imageError}
+              onNameSplitChange={(which, value) => {
+                if (which === 'first') setFirstName(value)
+                else setLastName(value)
+                const combined = [which === 'first' ? value : firstName, which === 'last' ? value : lastName].filter(Boolean).join(' ')
+                setPendingName(combined)
+                broadcastUserProfile({ name: combined })
+              }}
+              onChange={(field, value) => {
+                if (field === 'name') {
+                  setPendingName(value)
+                  // Derive split fields heuristically
+                  const parts = value.trim().split(/\s+/)
+                  if (parts.length > 1) { setFirstName(parts[0]); setLastName(parts.slice(1).join(' ')) }
+                  else { setFirstName(value); setLastName('') }
+                  broadcastUserProfile({ name: value })
+                } else {
+                  setPendingImage(value)
+                  broadcastUserProfile({ image: value })
+                }
+              }} 
+            />
           </TabsContent>
           <TabsContent value="appearance" className="space-y-6">
             <ThemeSettings value={pendingTheme} onChange={setPendingTheme} />

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch candidates with their CV analysis
+    // Fetch candidates with their CV analysis and real status
     const candidates = await prisma.candidateApplication.findMany({
       select: {
         id: true,
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
         skills: true,
         cvFileName: true,
         createdAt: true,
+        status: true,
         cvAnalysis: {
           select: {
             matchScore: true,
@@ -37,10 +38,8 @@ export async function GET(req: NextRequest) {
           }
         }
       },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      take: 50 // Limit to latest 50 candidates
+      orderBy: { createdAt: 'desc' },
+      take: 50
     });
 
     console.log(`✅ Found ${candidates.length} candidates`);
@@ -93,6 +92,31 @@ export async function GET(req: NextRequest) {
       if (score >= 75) recommendation = 'hire';
       else if (score >= 50) recommendation = 'maybe';
 
+      // Map DB enum (ApplicationStatus) to UI buckets used in messages component
+      const rawStatus = (candidate as any).status as string | undefined;
+      let uiStatus: 'pending' | 'contacted' | 'interviewed' | 'hired' | 'rejected' = 'pending';
+      if (rawStatus) {
+        switch (rawStatus) {
+          case 'PENDING':
+          case 'REVIEWED':
+          case 'WAITING':
+            uiStatus = 'pending'; break;
+          case 'CONTACTED':
+            uiStatus = 'contacted'; break;
+          case 'INTERVIEW':
+          case 'INTERVIEW_SCHEDULED':
+          case 'INTERVIEW_COMPLETED':
+            uiStatus = 'interviewed'; break;
+          case 'HIRED':
+            uiStatus = 'hired'; break;
+          case 'REJECTED':
+          case 'WITHDRAWN':
+            uiStatus = 'rejected'; break;
+          default:
+            uiStatus = 'pending';
+        }
+      }
+
       return {
         id: candidate.id,
         name: fullName,
@@ -105,7 +129,7 @@ export async function GET(req: NextRequest) {
           recommendation
         },
         appliedDate: candidate.createdAt.toISOString().split('T')[0],
-        status: 'pending' as const, // Fixed status until we implement status tracking
+        status: uiStatus,
         experience: candidate.experience,
         skills: candidate.skills,
         aiProvider: candidate.cvAnalysis?.aiProvider || null,

@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Mail,
 } from "lucide-react"
+import { useUserProfile } from "@/hooks/use-user-profile"
 
 const navigation = [
   { name: "Dashboard", href: "/recruiter", icon: LayoutDashboard },
@@ -43,6 +44,7 @@ export function Sidebar({ className }: SidebarProps) {
   const collapsed = false
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [profile] = useUserProfile()
 
   return (
     <div className={cn("flex flex-col bg-sidebar border-r border-sidebar-border", className)}>
@@ -87,20 +89,20 @@ export function Sidebar({ className }: SidebarProps) {
             <DropdownMenuTrigger asChild>
               <button className="w-full flex items-center gap-3 group">
                 <Avatar className="h-10 w-10 ring-1 ring-sidebar-border group-hover:ring-sidebar-accent transition">
-                  <AvatarImage src={session?.user?.image || undefined} alt={session?.user?.name || 'avatar'} />
+                  <AvatarImage src={profile.image || session?.user?.image || undefined} alt={profile.name || session?.user?.name || 'avatar'} />
                   <AvatarFallback className="text-sm">
-                    {(session?.user?.name || session?.user?.email || 'U')[0]}
+                    {(profile.name || session?.user?.name || session?.user?.email || 'U')[0]}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col text-left overflow-hidden">
-                  <span className="text-sm font-medium truncate">{session?.user?.name || session?.user?.email || 'Użytkownik'}</span>
+                  <span className="text-sm font-medium truncate">{profile.name || session?.user?.name || session?.user?.email || 'Użytkownik'}</span>
                   <span className="text-xs text-sidebar-foreground/70 truncate">{session?.user?.email || ''}</span>
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end" className="w-56 mr-2">
               <DropdownMenuLabel className="truncate max-w-full">
-                {session?.user?.name || session?.user?.email || 'Użytkownik'}
+                {profile.name || session?.user?.name || session?.user?.email || 'Użytkownik'}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

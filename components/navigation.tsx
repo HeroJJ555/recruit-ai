@@ -14,18 +14,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSession, signIn, signOut } from "next-auth/react"
+import { useUserProfile } from "@/hooks/use-user-profile"
 
 function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { data: session } = useSession()
+  const [profile] = useUserProfile()
 
   const initials = useMemo(() => {
-    return (session?.user?.name || "")
+    return (profile.name || session?.user?.name || "")
       .split(" ")
       .filter(Boolean)
       .map((s: string) => s[0] ?? "")
       .join("") || "U"
-  }, [session?.user?.name])
+  }, [profile.name, session?.user?.name])
 
   return (
     <nav className="bg-background/80 backdrop-blur border-b border-border sticky top-0 z-50">
@@ -47,14 +49,14 @@ function Navigation() {
                 <DropdownMenuTrigger asChild>
                   <button className="inline-flex items-center gap-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={session.user.image || undefined} alt={session.user.name || "Użytkownik"} />
+                      <AvatarImage src={profile.image || session?.user?.image || undefined} alt={profile.name || session?.user?.name || "Użytkownik"} />
                       <AvatarFallback>{initials}</AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel className="max-w-[220px] truncate">
-                    {session.user.name || session.user.email}
+                    {profile.name || session?.user?.name || session?.user?.email}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
