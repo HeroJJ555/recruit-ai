@@ -3,25 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface CandidateWithAnalysis {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  position: string;
-  experience: string;
-  skills: string;
-  cvFileName: string | null;
-  createdAt: Date;
-  cvAnalysis: {
-    matchScore: number | null;
-    summary: string | null;
-    technicalSkills: any;
-    aiProvider: string | null;
-    createdAt: Date;
-  } | null;
-}
-
 export async function GET(req: NextRequest) {
   try {
     console.log("📋 Messages API: Fetching candidates for feedback");
@@ -34,7 +15,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch candidates with their CV analysis (no CONTACTED status filter to avoid enum drift)
+    // Fetch candidates with their CV analysis
     const candidates = await prisma.candidateApplication.findMany({
       select: {
         id: true,
@@ -46,7 +27,6 @@ export async function GET(req: NextRequest) {
         skills: true,
         cvFileName: true,
         createdAt: true,
-        status: true,
         cvAnalysis: {
           select: {
             matchScore: true,
@@ -125,7 +105,7 @@ export async function GET(req: NextRequest) {
           recommendation
         },
         appliedDate: candidate.createdAt.toISOString().split('T')[0],
-        status: 'pending' as const, // We don't have status field in DB yet
+        status: 'pending' as const, // Fixed status until we implement status tracking
         experience: candidate.experience,
         skills: candidate.skills,
         aiProvider: candidate.cvAnalysis?.aiProvider || null,
