@@ -671,9 +671,174 @@ async function extractFromDOCX(bytes: ArrayBuffer): Promise<string> {
   }
 }
 
-function buildPrompt(text: string) {
+async function getGoldenCandidate(appId: string) {
+  try {
+    // Sprawdź czy aplikacja jest przypisana do konkretnej oferty pracy
+    const app = await prisma.candidateApplication.findUnique({
+      where: { id: appId },
+      select: { 
+        jobId: true,
+        job: {
+          select: {
+            title: true,
+            description: true,
+            requirements: true,
+            // @ts-ignore - goldenCandidate może nie być w typach Prisma
+            goldenCandidate: true
+          }
+        }
+      }
+    })
+    
+    if (app?.job?.goldenCandidate) {
+      return {
+        golden: app.job.goldenCandidate,
+        jobContext: {
+          title: app.job.title,
+          description: app.job.description,
+          requirements: app.job.requirements
+        }
+      }
+    }
+    
+    // Fallback: spróbuj z Supabase storage
+    if (app?.jobId) {
+      const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'cvs'
+      const key = `jobs/${app.jobId}/goldenCandidate.json`
+      const { data } = await supabaseAdmin.storage.from(bucket).download(key)
+      if (data) {
+        const golden = JSON.parse(await data.text())
+        return {
+          golden,
+          jobContext: {
+            title: app.job?.title,
+            description: app.job?.description,
+            requirements: app.job?.requirements
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Could not fetch golden candidate:', error)
+  }
+  
+  return null
+}
+
+function buildPrompt(text: string, appId: string) {
   const clipped = text.length > 16000 ? text.slice(0, 16000) : text
-  return `You are a recruiting assistant. Analyze the CV text below and return a concise JSON with keys: summary, key_skills (array), total_experience_years (number), seniority (one of: junior, mid, senior, lead), top_roles (array of strings), education (array of strings), languages (array of strings), notable_projects (array of strings), risks (array of strings). Only JSON, no extra text.\n\nCV_TEXT:\n${clipped}`
+  
+  // Podstawowy prompt bez złotego kandydata
+  const basicPrompt = `Jesteś doświadczonym rekruterem analizującym CV. Przeanalizuj poniższe CV i stwórz profesjonalne podsumowanie w formacie JSON.
+
+WYMAGANY FORMAT JSON:
+{
+  "summary": "Naturalne podsumowanie kandydata w 2-3 zdaniach podkreślające najważniejsze atuty",
+  "compatibility_score": 75,
+  "key_highlights": [
+    "Najważniejsze osiągnięcia i mocne strony (3-5 punktów)"
+  ],
+  "technical_skills": [
+    "Lista umiejętności technicznych"
+  ],
+  "experience_summary": {
+    "years": 5,
+    "level": "senior",
+    "key_roles": ["Frontend Developer", "Team Lead"]
+  },
+  "standout_projects": [
+    "Najciekawsze projekty z opisem osiągnięć"
+  ],
+  "interview_questions": [
+    "Przygotowane pytania do kandydata na rozmowę"
+  ],
+  "potential_concerns": [
+    "Ewentualne ryzyka lub braki (jeśli są)"
+  ]
+}
+
+INSTRUKCJE:
+- Stwórz naturalne, profesjonalne podsumowanie
+- Podkreśl konkretne osiągnięcia i liczby jeśli są dostępne
+- Oceń poziom doświadczenia (junior/mid/senior/lead)
+- Wypisz najbardziej imponujące projekty
+- Zwróć uwagę na luki lub potencjalne problemy
+- compatibility_score ustaw na podstawową ocenę 50-80
+
+CV DO ANALIZY:
+${clipped}`
+
+  return basicPrompt
+}
+
+function buildPromptWithGolden(text: string, goldenData: any) {
+  const clipped = text.length > 16000 ? text.slice(0, 16000) : text
+  const { golden, jobContext } = goldenData
+  
+  const goldenPrompt = `Jesteś doświadczonym rekruterem analizującym CV kandydata w kontekście konkretnej oferty pracy. Porównaj kandydata z profilem idealnego kandydata i oceń dopasowanie.
+
+KONTEKST OFERTY PRACY:
+Stanowisko: ${jobContext?.title || 'Nie podano'}
+Opis: ${jobContext?.description || 'Nie podano'}
+Wymagania: ${jobContext?.requirements || 'Nie podano'}
+
+PROFIL IDEALNEGO KANDYDATA:
+Rola: ${golden?.role || 'Nie podano'}
+Poziom: ${golden?.level || 'Nie podano'}
+Kluczowe umiejętności: ${golden?.skills || 'Nie podano'}
+Dodatkowe informacje: ${golden?.summary || 'Nie podano'}
+
+WYMAGANY FORMAT JSON:
+{
+  "summary": "Podsumowanie kandydata z naciskiem na dopasowanie do oferty (2-3 zdania)",
+  "compatibility_score": 85,
+  "compatibility_breakdown": {
+    "skills_match": 80,
+    "experience_level": 90,
+    "role_fit": 85,
+    "overall_notes": "Szczegółowe uzasadnienie oceny"
+  },
+  "key_highlights": [
+    "Najważniejsze atuty w kontekście tej oferty (3-5 punktów)"
+  ],
+  "technical_skills": [
+    "Lista umiejętności z oznaczeniem dopasowania do wymagań"
+  ],
+  "experience_summary": {
+    "years": 5,
+    "level": "senior",
+    "key_roles": ["Frontend Developer"],
+    "relevance_to_position": "Jak doświadczenie pasuje do oferty"
+  },
+  "standout_projects": [
+    "Projekty najbardziej związane z oferowaną pozycją"
+  ],
+  "interview_questions": [
+    "Przygotowane pytania do kandydata na podstawie CV i oferty"
+  ],
+  "potential_concerns": [
+    "Braki w kontekście wymagań oferty lub inne ryzyka"
+  ],
+  "recommendation": {
+    "decision": "RECOMMEND|CONSIDER|REJECT",
+    "reasoning": "Uzasadnienie rekomendacji",
+    "next_steps": "Sugerowane kolejne kroki w procesie"
+  }
+}
+
+INSTRUKCJE OCENY:
+- compatibility_score (0-100): Oceń ogólne dopasowanie do oferty
+- skills_match: % pokrycia kluczowych umiejętności
+- experience_level: Dopasowanie poziomu doświadczenia
+- role_fit: Jak pasuje rola i typ projektów
+- Podkreśl konkretne osiągnięcia relevantne dla oferty
+- Wskaż ewentualne braki względem wymagań
+- Zaproponuj czy kandydat jest wart dalszego procesu
+
+CV DO ANALIZY:
+${clipped}`
+
+  return goldenPrompt
 }
 
 // Removed direct OpenAI call; we use lib/ai provider abstraction.
@@ -805,28 +970,133 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     console.log(`Building prompt with ${text.length} characters of text`)
-    const prompt = buildPrompt(text)
+    
+    // Pobierz profil złotego kandydata jeśli dostępny
+    const goldenData = await getGoldenCandidate(params.id)
+    console.log(`🎯 Golden candidate data:`, goldenData ? 'Found' : 'Not found')
+    
+    // Stwórz odpowiedni prompt w zależności od dostępności złotego kandydata
+    const prompt = goldenData 
+      ? buildPromptWithGolden(text, goldenData)
+      : buildPrompt(text, params.id)
+      
     console.log('Prompt created, calling AI analysis...')
     console.log('EXTRACTED TEXT (first 200 chars):', text.substring(0, 200))
     
     let result: any
     
     // INSTANT ANALYSIS - try AI but fallback immediately to heuristic for speed
-    console.log('Attempting fast AI analysis with timeout...')
+    console.log('Attempting AI analysis with OpenAI timeout...')
     try {
-      // Set a 5-second timeout for AI response
+      // Set a 15-second timeout for OpenAI response (complex analysis needs more time)
       const aiPromise = chatJSON(prompt)
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('AI timeout')), 5000)
+        setTimeout(() => reject(new Error('AI timeout')), 15000)
       )
       
       result = await Promise.race([aiPromise, timeoutPromise])
-      console.log('AI analysis successful:', result ? 'Got result' : 'Empty result')
-    } catch (e: any) {
-      console.log('AI analysis failed or timed out, using instant heuristic:', e.message)
-      // Immediate fallback to heuristic analysis for instant results
-      result = heuristicAnalysis(text)
-      console.log('Heuristic analysis completed instantly:', result ? 'Got result' : 'Empty result')
+      console.log('✅ AI analysis completed successfully')
+      
+      // Ensure result has required fields for new format
+      if (result && typeof result === 'object') {
+        // Add compatibility_score if missing and golden data available
+        if (goldenData && !result.compatibility_score) {
+          // Calculate basic compatibility based on skills overlap
+          const goldenSkills = (goldenData.golden?.skills || '').toLowerCase().split(',').map((s: string) => s.trim()).filter(Boolean)
+          const candidateSkills = (result.technical_skills || result.key_skills || []).map((s: string) => s.toLowerCase())
+          const overlap = goldenSkills.filter((skill: string) => candidateSkills.some((cs: string) => cs.includes(skill))).length
+          result.compatibility_score = Math.min(95, Math.max(20, Math.round((overlap / Math.max(goldenSkills.length, 1)) * 100)))
+        }
+        
+        // Ensure basic structure for new format
+        if (!result.key_highlights && result.key_skills) {
+          result.key_highlights = result.key_skills.slice(0, 5)
+        }
+        if (!result.experience_summary && result.total_experience_years) {
+          result.experience_summary = {
+            years: result.total_experience_years,
+            level: result.seniority || 'mid',
+            key_roles: result.top_roles || []
+          }
+        }
+      }
+      
+    } catch (error: any) {
+      console.log(`⚠️ AI analysis failed (${error.message}), falling back to heuristic`)
+      const heuristicResult = heuristicAnalysis(text)
+      
+      // Calculate compatibility score with golden candidate
+      let compatibilityScore = 50 // Default score
+      if (goldenData) {
+        const goldenSkills = (goldenData.golden?.skills || '').toLowerCase().split(',').map((s: string) => s.trim()).filter(Boolean)
+        const candidateSkills = (heuristicResult.key_skills || []).map((s: string) => s.toLowerCase())
+        const skillsOverlap = goldenSkills.filter((skill: string) => candidateSkills.some((cs: string) => cs.includes(skill))).length
+        const skillsScore = goldenSkills.length > 0 ? Math.round((skillsOverlap / goldenSkills.length) * 100) : 50
+        
+        // Level matching
+        const goldenLevel = (goldenData.golden?.level || '').toLowerCase()
+        const candidateLevel = (heuristicResult.seniority || '').toLowerCase()
+        const levelScore = goldenLevel === candidateLevel ? 100 : (Math.abs(['junior', 'mid', 'senior', 'lead'].indexOf(goldenLevel) - ['junior', 'mid', 'senior', 'lead'].indexOf(candidateLevel)) <= 1 ? 75 : 50)
+        
+        // Role matching
+        const goldenRole = (goldenData.golden?.role || '').toLowerCase()
+        const candidateRoles = (heuristicResult.top_roles || []).map((r: string) => r.toLowerCase())
+        const roleScore = candidateRoles.some((r: string) => r.includes(goldenRole.split(' ')[0]) || goldenRole.includes(r.split(' ')[0])) ? 90 : 60
+        
+        compatibilityScore = Math.round((skillsScore * 0.5 + levelScore * 0.3 + roleScore * 0.2))
+        compatibilityScore = Math.min(95, Math.max(20, compatibilityScore))
+      }
+      
+      // Create natural summary based on context
+      const name = text.match(/(?:^|\n)\s*([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+\s+[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)/)?.[1] || 'Kandydat'
+      const topSkills = (heuristicResult.key_skills || []).slice(0, 3).join(', ')
+      const contextualSummary = goldenData 
+        ? `${name} - ${heuristicResult.seniority} developer z ${heuristicResult.total_experience_years || 0} latami doświadczenia. ${compatibilityScore > 70 ? 'Doskonale' : compatibilityScore > 50 ? 'Dobrze' : 'Częściowo'} pasuje do profilu ${goldenData.golden?.role || 'poszukiwanej pozycji'}. Główne umiejętności: ${topSkills}.`
+        : `${name} - ${heuristicResult.seniority} ${(heuristicResult.top_roles || [])[0] || 'developer'} z ${heuristicResult.total_experience_years || 0} latami doświadczenia. Specjalizuje się w: ${topSkills}.`
+      
+      // Transform to new format
+      result = {
+        summary: contextualSummary,
+        compatibility_score: compatibilityScore,
+        key_highlights: [
+          `${heuristicResult.total_experience_years || 0} lat doświadczenia jako ${heuristicResult.seniority}`,
+          ...((heuristicResult.key_skills || []).slice(0, 3).map((skill: string) => `Doświadczenie w ${skill}`)),
+          ...((heuristicResult.notable_projects || []).slice(0, 2))
+        ].slice(0, 5),
+        technical_skills: heuristicResult.key_skills || [],
+        experience_summary: {
+          years: heuristicResult.total_experience_years || 0,
+          level: heuristicResult.seniority || 'mid',
+          key_roles: heuristicResult.top_roles || [],
+          relevance_to_position: goldenData 
+            ? `Poziom zgodności: ${compatibilityScore}% z profilem ${goldenData.golden?.role || 'idealnego kandydata'}`
+            : 'Analiza ogólna profilu kandydata'
+        },
+        standout_projects: heuristicResult.notable_projects || [],
+        interview_questions: [
+          "Opowiedz o swoim największym osiągnięciu technicznym.",
+          "Jak podchodzisz do rozwiązywania problemów w kodzie?",
+          "Jakie technologie chciałbyś poznać w przyszłości?"
+        ],
+        potential_concerns: heuristicResult.risks || [],
+        ...(goldenData && {
+          compatibility_breakdown: {
+            skills_match: Math.round(compatibilityScore * 0.8),
+            experience_level: Math.round(compatibilityScore * 0.9),
+            role_fit: Math.round(compatibilityScore * 0.85),
+            overall_notes: `Kandydat ${compatibilityScore > 70 ? 'dobrze pasuje' : compatibilityScore > 50 ? 'częściowo pasuje' : 'słabo pasuje'} do wymagań oferty. Główne atuty: ${topSkills || 'umiejętności techniczne'}.`
+          },
+          recommendation: {
+            decision: compatibilityScore > 70 ? 'RECOMMEND' : compatibilityScore > 40 ? 'CONSIDER' : 'REJECT',
+            reasoning: `Kandydat osiągnął ${compatibilityScore}% zgodności z profilem idealnego kandydata. ${compatibilityScore > 70 ? 'Wysokie dopasowanie umiejętności i doświadczenia.' : compatibilityScore > 40 ? 'Umiarkowane dopasowanie, wymaga analizy.' : 'Niskie dopasowanie do wymagań.'}`,
+            next_steps: compatibilityScore > 70 
+              ? 'Zaproś na rozmowę rekrutacyjną - kandydat ma potencjał' 
+              : compatibilityScore > 40 
+                ? 'Przeanalizuj szczegółowo CV i rozważ rozmowę screeningową'
+                : 'Kandydat nie spełnia kluczowych wymagań'
+          }
+        })
+      }
     }
     
     console.log('Caching result and returning response...')
@@ -1024,6 +1294,10 @@ async function extractWithTesseractOCR(bytes: ArrayBuffer, fileName: string): Pr
       
       const result = await convert(1) // First page only
       const imagePath = result.path
+      
+      if (!imagePath) {
+        throw new Error('Failed to convert PDF to image - no image path returned')
+      }
       
       console.log(`   🔍 tesseract-ocr: Image created: ${imagePath}`)
       
