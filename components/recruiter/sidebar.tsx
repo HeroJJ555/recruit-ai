@@ -30,7 +30,6 @@ const navigation = [
   { name: "Asystent AI", href: "/recruiter/ai-assistant", icon: Brain },
   { name: "Statystyka", href: "/recruiter/analytics", icon: BarChart3 },
   { name: "Wiadomości", href: "/recruiter/messages", icon: MessageSquare },
-  { name: "Wyszukiwanie", href: "/recruiter/search", icon: Search },
   { name: "Kalendarz", href: "/recruiter/calendar", icon: Calendar },
   { name: "Ustawienia", href: "/recruiter/settings", icon: Settings },
 ]
