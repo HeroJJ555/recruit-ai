@@ -50,19 +50,14 @@ export function AIAssistantFullscreen() {
   const shouldStickToBottomRef = useRef(true)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Auto-send initial question if provided
+  // Sprawdź czy jest initial question w URL ale nie wysyłaj automatycznie
+  // Użytkownik może sam nacisnąć Enter jeśli chce
   useEffect(() => {
     if (initialQuestion && initialQuestion.trim()) {
-      // Sprawdź czy to pytanie nie zostało już wysłane (gdy przychodzi z kontekstu)
-      const alreadyHasQuestion = messages.some(msg => 
-        msg.role === "user" && msg.content.includes(initialQuestion.trim())
-      )
-      
-      if (!alreadyHasQuestion) {
-        handleSendMessage()
-      }
+      console.log("Initial question available:", initialQuestion)
+      // Input value jest już ustawione w useState
     }
-  }, [initialQuestion])
+  }, [])
 
   const handleScroll = useCallback(() => {
     if (!scrollAreaRef.current) return
@@ -149,7 +144,13 @@ export function AIAssistantFullscreen() {
                       {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className={`h-4 w-4 ${message.error ? "text-destructive" : "text-secondary-foreground"}`} />}
                     </div>
                     <div className={`p-3 rounded-lg text-sm leading-relaxed ${isUser ? "bg-primary text-primary-foreground" : message.error ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                      <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
+                      <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ 
+                        __html: message.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                          .replace(/• /g, '• ')
+                          .replace(/\n/g, '<br/>')
+                      }} />
                       {message.pending && !message.error && (
                         <div className="mt-2 flex space-x-1">
                           <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
