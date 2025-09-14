@@ -1,107 +1,166 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { Client } from "@gradio/client"
+﻿import { NextRequest, NextResponse } from "next/server";
+import { Client } from "@gradio/client";
 
-type ChatMessage = {
-  role: 'system' | 'user' | 'assistant'
-  content: string
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
-type ChatRequest = {
-  messages: ChatMessage[]
-  temperature?: number
-  maxTokens?: number
-}
+const HR_SYSTEM_PROMPT = `Jesteś doświadczonym asystentem AI specjalizującym się w rekrutacji i HR. Twoim zadaniem jest wspieranie rekruterów w ich codziennej pracy. Możesz pomóc w:
 
-async function callGradioChat(messages: ChatMessage[], temperature = 0.4, maxTokens = 512): Promise<string> {
-  try {
-    console.log('=== Connecting to Gradio: NotASI/Llama-3.1-Storm-8B ===')
-    
-    const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
-    
-    const userMessages = messages.filter(m => m.role === 'user')
-    const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Cześć!"
-    
-    console.log('User message:', lastUserMessage)
-    
-    const systemPrompt = "Jesteś profesjonalnym asystentem AI specjalizującym się w rekrutacji i HR. Odpowiadaj po polsku, zwięźle i konkretnie. Udzielaj praktycznych porad dotyczących procesu rekrutacji, oceny kandydatów, tworzenia opisów stanowisk i prowadzenia rozmów kwalifikacyjnych."
-    
-    const result = await client.predict("/chat", {
-      message: lastUserMessage,
-      system_prompt: systemPrompt,
-      temperature: temperature,
-      max_new_tokens: maxTokens,
-      top_p: 0.9,
-      top_k: 40,
-      penalty: 1.1,
-    })
-    
-    console.log('Gradio response:', result.data)
-    
-    let response = ""
-    if (result?.data) {
-      if (Array.isArray(result.data)) {
-        response = result.data.find(item => typeof item === 'string') || result.data[0] || ""
-      } else if (typeof result.data === 'string') {
-        response = result.data
-      } else {
-        response = String(result.data)
-      }
-    }
-    
-    if (!response || response.length < 2) {
-      return "Jestem asystentem rekrutacyjnym. W czym mogę pomóc?"
-    }
-    
-    return response.trim()
-    
-  } catch (error) {
-    console.error('Gradio connection failed:', error)
-    return "Cześć! Jestem asystentem AI ds. rekrutacji. Mogę pomóc z pisaniem opisów stanowisk, przygotowaniem pytań na rozmowy kwalifikacyjne lub oceną kandydatów. W czym mogę pomóc?"
-  }
-}
+🎯 REKRUTACJA I SELEKCJA:
+- Analizie CV i profili kandydatów
+- Ocenie dopasowania kandydatów do stanowisk
+- Przygotowaniu pytań na rozmowy kwalifikacyjne
+- Strategiach dotarcia do talentów
+
+📋 ZARZĄDZANIE PROCESAMI:
+- Optymalizacji procesów rekrutacyjnych
+- Tworzeniu opisów stanowisk
+- Planowaniu struktur organizacyjnych
+- Metrykach i KPI w HR
+
+🤝 ROZWÓJ PRACOWNIKÓW:
+- Planach rozwoju kariery
+- Strategiach retencji talentów
+- Programach szkoleń i rozwoju
+- Zarządzaniu performansem
+
+💼 EMPLOYER BRANDING:
+- Budowaniu marki pracodawcy
+- Strategiach komunikacji z kandydatami
+- Poprawie candidate experience
+
+Odpowiadaj konkretnie, profesjonalnie i zawsze odnosząc się do praktycznych aspektów pracy w HR. Udzielaj szczegółowych, actionable porad opartych na najlepszych praktykach branżowych.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const body: ChatRequest = await req.json()
+    console.log("🤖 AI Chat API: Received request");
+    const body = await req.json();
     
-    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-      return NextResponse.json({ error: "Messages array is required" }, { status: 400 })
+    if (!body.messages || !Array.isArray(body.messages)) {
+      console.log("❌ AI Chat API: Invalid message format");
+      return NextResponse.json(
+        { error: "Nieprawidłowy format wiadomości" },
+        { status: 400 }
+      );
     }
 
-    const temperature = Math.max(0, Math.min(1, body.temperature || 0.4))
-    const maxTokens = Math.max(50, Math.min(2048, body.maxTokens || 512))
+    // Build conversation context
+    const messages = body.messages as ChatMessage[];
+    const conversationHistory = messages
+      .slice(-10) // Last 10 messages for context
+      .map(msg => `${msg.role === "user" ? "Użytkownik" : "Asystent"}: ${msg.content}`)
+      .join("\n\n");
+    
+    const lastUserMessage = messages.filter(m => m.role === "user").pop()?.content || "";
+    
+    if (!lastUserMessage) {
+      console.log("❌ AI Chat API: No user message found");
+      return NextResponse.json(
+        { error: "Brak wiadomości użytkownika" },
+        { status: 400 }
+      );
+    }
 
-    console.log('Chat request:', { 
-      messageCount: body.messages.length, 
-      temperature, 
-      maxTokens,
-      userEmail: session.user?.email 
-    })
+    console.log("📝 AI Chat API: User message:", lastUserMessage);
 
-    const answer = await callGradioChat(body.messages, temperature, maxTokens)
+    try {
+      console.log("🚀 Connecting to Llama-3.1-Storm-8B model...");
+      
+      // Connect to the Gradio AI model
+      const client = await Client.connect("NotASI/Llama-3.1-Storm-8B");
+      
+      // Prepare the prompt with system context and conversation history
+      const fullPrompt = `${HR_SYSTEM_PROMPT}
 
-    return NextResponse.json({ 
-      answer,
-      model: "NotASI/Llama-3.1-Storm-8B",
-      temperature,
-      maxTokens
-    })
+=== KONTEKST ROZMOWY ===
+${conversationHistory}
+
+=== NOWE PYTANIE ===
+Użytkownik: ${lastUserMessage}
+
+=== ODPOWIEDŹ ===
+Asystent:`;
+
+      console.log("🧠 Sending prompt to AI model...");
+      
+      // Call the AI model with specific parameters
+      const result = await client.predict("/chat", {
+        message: fullPrompt,
+        system_message: HR_SYSTEM_PROMPT,
+        max_new_tokens: 2048,
+        temperature: 0.7,
+        top_p: 0.95,
+        top_k: 40,
+        repetition_penalty: 1.1
+      });
+
+      console.log("✅ AI model response received");
+      
+      // Extract the response - handle different response formats
+      let aiResponse = "Przepraszam, wystąpił problem z generowaniem odpowiedzi.";
+      
+      if (result && typeof result === 'object' && 'data' in result) {
+        const data = result.data as any[];
+        if (Array.isArray(data) && data.length > 0) {
+          aiResponse = data[1] || data[0] || aiResponse;
+        }
+      }
+      
+      return NextResponse.json({ 
+        answer: aiResponse,
+        model: "Llama-3.1-Storm-8B",
+        provider: "NotASI" 
+      });
+      
+    } catch (aiError) {
+      console.error("� AI Model Error:", aiError);
+      
+      // Fallback response when AI is unavailable
+      const fallbackResponse = `Przepraszam, aktualnie mam problemy z połączeniem do głównego modelu AI. 
+
+Jestem asystentem HR i mogę pomóc w podstawowych kwestiach:
+
+🔍 **Jeśli pytasz o analizę CV:**
+Sprawdź doświadczenie zawodowe, umiejętności techniczne, ścieżkę kariery i osiągnięcia kandydata.
+
+� **Jeśli potrzebujesz pytań na rozmowę:**
+Przygotuj pytania techniczne, behawioralne i motywacyjne dostosowane do stanowiska.
+
+📋 **Jeśli tworzysz opis stanowiska:**
+Uwzględnij jasny tytuł, wymagania, obowiązki i benefity.
+
+Spróbuj ponownie za chwilę - główny model AI powinien zostać przywrócony.`;
+
+      return NextResponse.json({ 
+        answer: fallbackResponse,
+        model: "fallback",
+        error: "AI model temporarily unavailable"
+      });
+    }
 
   } catch (error) {
-    console.error('Chat API error:', error)
+    console.error("💥 AI Chat API Error:", error);
     
-    const fallbackResponse = "Cześć! Jestem asystentem AI ds. rekrutacji. Mogę pomóc z pisaniem opisów stanowisk, przygotowaniem pytań na rozmowy kwalifikacyjne lub oceną kandydatów. Napisz, w czym mogę pomóc!"
-    
-    return NextResponse.json({ 
-      answer: fallbackResponse,
-      model: "fallback"
-    })
+    return NextResponse.json(
+      { 
+        error: "Wystąpił błąd podczas komunikacji z asystentem AI. Spróbuj ponownie za chwilę.",
+        model: "error"
+      },
+      { status: 500 }
+    );
   }
+}
+
+// Handle OPTIONS for CORS
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
 }
