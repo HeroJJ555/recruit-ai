@@ -34,6 +34,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
+    // Map to Prisma enum values (uppercase)
+    const toPrismaStatus = (s: string): string => {
+      switch (s) {
+        case 'rejected':
+          return 'REJECTED'
+        case 'waiting':
+          return 'WAITING'
+        case 'interview':
+          return 'INTERVIEW'
+        case 'hired':
+          return 'HIRED'
+        case 'withdrawn':
+          return 'WITHDRAWN'
+        default:
+          return 'PENDING'
+      }
+    }
+
+    const prismaStatus = toPrismaStatus(normalizedAction)
+
     // Update candidate statuses
     const updateResult = await prisma.candidateApplication.updateMany({
       where: {
@@ -42,7 +62,7 @@ export async function POST(req: NextRequest) {
         }
       },
       data: ({
-        status: normalizedAction,
+        status: prismaStatus,
         updatedAt: new Date()
       } as any)
     })
@@ -52,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `Successfully updated ${updateResult.count} candidates to status: ${normalizedAction}`,
+      message: `Successfully updated ${updateResult.count} candidates to status: ${prismaStatus}`,
       updatedCount: updateResult.count
     })
 

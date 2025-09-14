@@ -21,9 +21,8 @@ model User {
   candidateApplications CandidateApplication[]
   jobs                  Job[]
   meetings              Meeting[]
-  messageHistory        MessageHistory[]
   sessions              Session[]
-  messagesSent          MessageHistory[]
+  messagesSent          MessageHistory[]       @relation("UserMessages")
 }
 
 model CandidateApplication {
@@ -178,7 +177,7 @@ model MessageHistory {
   
   // Sender info
   senderUserId           String?
-  senderUser             User?                @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+  senderUser             User?                @relation("UserMessages", fields: [senderUserId], references: [id], onDelete: SetNull)
   mailProvider           String               @default("mailchimp")
   externalMessageId      String?
   status                 MessageStatus        @default(SENT)
