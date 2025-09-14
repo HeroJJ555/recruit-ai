@@ -29,6 +29,17 @@ export default async function RecruiterCandidatesPage() {
     },
   } as any))
 
+  const ARCHIVE_STATUSES = new Set([
+    'REJECTED', 'HIRED', 'WITHDRAWN', 'REVIEWED', 'CONTACTED', 'INTERVIEW_COMPLETED'
+  ])
+  const active: any[] = []
+  const archived: any[] = []
+  for (const a of applications as any[]) {
+    const st = String(a.status || 'PENDING').toUpperCase()
+    if (ARCHIVE_STATUSES.has(st)) archived.push(a)
+    else active.push(a)
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar className="w-64 flex-shrink-0" />
