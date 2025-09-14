@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Send, Users, CheckCircle, XCircle, Clock, FileText, MessageSquare, Loader2, AlertCircle, User, Bot } from 'lucide-react';
+import { Mail, Send, Users, CheckCircle, XCircle, Clock, FileText, MessageSquare, Loader2, AlertCircle, User, Bot, Eye, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Candidate {
@@ -113,12 +113,43 @@ export default function MessagesContent() {
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [messageHistory, setMessageHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPagination, setHistoryPagination] = useState<any>(null);
   const { toast } = useToast();
 
   // Fetch candidates from database
   useEffect(() => {
     fetchCandidates();
   }, []);
+
+  // Fetch message history when history tab is accessed
+  const fetchMessageHistory = async (page = 1) => {
+    try {
+      setHistoryLoading(true);
+      const response = await fetch(`/api/recruiter/message-history?page=${page}&limit=10`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch message history');
+      }
+      
+      const data = await response.json();
+      setMessageHistory(data.messages || []);
+      setHistoryPagination(data.pagination);
+      
+      console.log(`✅ Loaded ${data.messages?.length || 0} message history entries`);
+    } catch (error) {
+      console.error('Error fetching message history:', error);
+      toast({
+        title: "Błąd",
+        description: "Nie udało się pobrać historii wiadomości",
+        variant: "destructive",
+      });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const fetchCandidates = async () => {
     try {
@@ -312,19 +343,10 @@ Zespół Rekrutacji`;
 
       toast({
         title: "Mail wysłany!",
-        description: `Feedback został wysłany do ${selectedCandidate.name}`,
+        description: `Feedback został wysłany do ${selectedCandidate.name}. Kandydat został oznaczony jako skontaktowany.`,
       });
 
-      // Update candidate status and refresh list
-      await fetch(`/api/recruiter/candidates/${selectedCandidate.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'contacted' }),
-      });
-
-      // Refresh candidates list
+      // Refresh candidates list to show updated status
       fetchCandidates();
 
       // Reset form
@@ -607,14 +629,147 @@ Zespół Rekrutacji`;
             <CardHeader>
               <CardTitle>Historia wiadomości</CardTitle>
               <CardDescription>
-                Zobacz wszystkie wysłane wiadomości
+                Przegląd wszystkich wysłanych wiadomości z kandydatami
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <Mail className="h-12 w-12 mx-auto mb-4" />
-                <p>Historia wiadomości zostanie dodana po pierwszym wysłanym mailu.</p>
-              </div>
+              {!messageHistory.length && !historyLoading ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Button 
+                    onClick={() => fetchMessageHistory(1)}
+                    variant="outline"
+                    className="mb-4"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Pokaż historię wiadomości
+                  </Button>
+                  <div className="text-center text-muted-foreground">
+                    <Mail className="h-12 w-12 mx-auto mb-4" />
+                    <p>Kliknij przycisk powyżej, aby załadować historię wiadomości.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {historyLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                      <span className="ml-2">Ładowanie historii...</span>
+                    </div>
+                  ) : messageHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Mail className="h-12 w-12 mx-auto mb-4" />
+                      <p>Brak wysłanych wiadomości.</p>
+                      <p className="text-sm mt-2">Historia pojawi się po wysłaniu pierwszej wiadomości.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {messageHistory.map((message) => (
+                        <div key={message.id} className="border rounded-lg p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold">{message.subject}</h4>
+                                <Badge 
+                                  variant={
+                                    message.status === 'SENT' ? 'default' :
+                                    message.status === 'DELIVERED' ? 'secondary' :
+                                    message.status === 'FAILED' ? 'destructive' :
+                                    'outline'
+                                  }
+                                >
+                                  {message.status === 'SENT' ? 'Wysłane' :
+                                   message.status === 'DELIVERED' ? 'Dostarczone' :
+                                   message.status === 'FAILED' ? 'Błąd' :
+                                   message.status}
+                                </Badge>
+                                {message.template && (
+                                  <Badge variant="outline">
+                                    {message.template === 'positive' ? 'Pozytywny' :
+                                     message.template === 'neutral' ? 'Neutralny' :
+                                     message.template === 'negative' ? 'Negatywny' :
+                                     message.template === 'ai-feedback' ? 'AI Feedback' :
+                                     'Custom'}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span>{message.candidate.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  <span>{message.candidate.email}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{new Date(message.sentAt).toLocaleString('pl-PL')}</span>
+                                </div>
+                              </div>
+                              <div className="text-sm">
+                                <strong>Stanowisko:</strong> {message.candidate.position}
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {message.mailProvider === 'mailchimp' ? '📧 Mailchimp' : '📨 Email'}
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gray-50 p-3 rounded text-sm">
+                            <div className="max-h-32 overflow-y-auto">
+                              <pre className="whitespace-pre-wrap font-sans">{message.content}</pre>
+                            </div>
+                          </div>
+                          
+                          {message.errorMessage && (
+                            <Alert variant="destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription>
+                                <strong>Błąd:</strong> {message.errorMessage}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      ))}
+                      
+                      {historyPagination && historyPagination.totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-4">
+                          <p className="text-sm text-muted-foreground">
+                            Strona {historyPagination.currentPage} z {historyPagination.totalPages} 
+                            ({historyPagination.totalCount} wiadomości)
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!historyPagination.hasPreviousPage || historyLoading}
+                              onClick={() => {
+                                const newPage = historyPagination.currentPage - 1;
+                                setHistoryPage(newPage);
+                                fetchMessageHistory(newPage);
+                              }}
+                            >
+                              Poprzednia
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!historyPagination.hasNextPage || historyLoading}
+                              onClick={() => {
+                                const newPage = historyPagination.currentPage + 1;
+                                setHistoryPage(newPage);
+                                fetchMessageHistory(newPage);
+                              }}
+                            >
+                              Następna
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
