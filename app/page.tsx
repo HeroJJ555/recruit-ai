@@ -13,8 +13,11 @@ export default function HomePage() {
       <main className="flex-1">
         <HeroSection />
         <FeaturesGrid />
-        <section className="max-w-6xl mx-auto px-4 py-12 md:py-16 text-center">
-          <div className="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-2xl p-8 md:p-12">
+        <section className="max-w-6xl mx-auto px-4 py-12 md:py-16 text-center relative">
+          {/* Smooth fade from previous section */}
+          <div className="absolute top-0 left-0 right-0 h-16 md:h-20 bg-gradient-to-b from-slate-50/50 via-transparent to-transparent dark:from-slate-900/50 pointer-events-none" />
+          
+          <div className="bg-gradient-to-r from-primary/5 to-secondary/5 rounded-2xl p-8 md:p-12 relative">
             <h2 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl mb-4">Gotowy na rewolucję w rekrutacji?</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto mb-6 md:mb-8">Dołącz do firm, które wykorzystują moc AI aby skrócić czas rekrutacji i podnieść jakość zatrudnienia.</p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
@@ -22,8 +25,14 @@ export default function HomePage() {
               <Link href="/demo"><Button variant="outline" size="lg" className="px-8 py-5">Zobacz demo</Button></Link>
             </div>
           </div>
+          
+          {/* Smooth fade to next section */}
+          <div className="absolute bottom-0 left-0 right-0 h-16 md:h-20 bg-gradient-to-b from-transparent to-background pointer-events-none" />
         </section>
-        <section className="max-w-5xl mx-auto px-4 pb-16 md:pb-24 pt-4">
+        <section className="max-w-5xl mx-auto px-4 pb-16 md:pb-24 pt-4 relative">
+          {/* Smooth fade from previous section */}
+          <div className="absolute top-0 left-0 right-0 h-12 md:h-16 bg-gradient-to-b from-slate-50/30 via-transparent to-transparent dark:from-slate-900/30 pointer-events-none" />
+          
           <h2 className="font-heading font-bold text-3xl md:text-4xl text-center mb-4">FAQ</h2>
           <p className="text-muted-foreground text-center max-w-2xl mx-auto mb-8">Najczęstsze pytania dotyczące platformy i funkcji AI. Masz inne? Skontaktuj się z nami.</p>
           <Accordion type="single" collapsible className="space-y-2">
