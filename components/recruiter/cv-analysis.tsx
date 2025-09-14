@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, Sparkles, MessageSquare, Award, Briefcase, User, AlertCircle, RefreshCw } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Result = {
   summary?: string
@@ -37,13 +38,30 @@ export function CvAnalysis({ appId }: { appId: string }) {
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Automatyczne uruchomienie analizy przy załadowaniu komponentu
+  // Przy załadowaniu: tylko spróbuj wczytać zapisany wynik z bazy (bez uruchamiania analizy)
   useEffect(() => {
-    // Reset state on app change and run fresh analysis
-    setResult(null)
-    setError(null)
-    run(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false
+    const loadCached = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/candidate/applications/${appId}/analysis`)
+        if (!res.ok) {
+          // 404 = brak analizy — to OK
+          setResult(null)
+        } else {
+          const json = await res.json()
+          const sanitized = sanitizeAnalysisResult(json.result)
+          if (!ignore) setResult(sanitized)
+        }
+      } catch {
+        if (!ignore) setResult(null)
+      } finally {
+        if (!ignore) setLoading(false)
+      }
+    }
+    loadCached()
+    return () => { ignore = true }
   }, [appId])
 
   const run = async (refresh = false) => {
@@ -79,32 +97,94 @@ export function CvAnalysis({ appId }: { appId: string }) {
       return {}
     }
 
-    // Helper function to sanitize any array to contain only strings
-    const sanitizeArray = (arr: any[]): string[] => {
+    // Helper: map level to PL label
+    const levelToPL = (lvl?: string | number) => {
+      if (typeof lvl === 'number') {
+        if (lvl >= 80) return 'wysoki'
+        if (lvl >= 50) return 'średni'
+        return 'niski'
+      }
+      const s = String(lvl || '').toLowerCase()
+      if (['high', 'wysoki', 'strong'].includes(s)) return 'wysoki'
+      if (['medium', 'średni', 'mid'].includes(s)) return 'średni'
+      if (['low', 'niski', 'weak'].includes(s)) return 'niski'
+      return ''
+    }
+
+    // Helper function to sanitize any array of generic highlights to strings
+    const sanitizeHighlights = (arr: any[]): string[] => {
       if (!Array.isArray(arr)) return []
       return arr.map((item: any, index: number) => {
         try {
           if (typeof item === 'string') {
             return item
           } else if (item && typeof item === 'object') {
-            // Extract first string value from object
-            const values = Object.values(item).filter(v => typeof v === 'string')
-            return values.length > 0 ? String(values[0]) : `Item ${index + 1}`
+            // Try common keys first
+            const text = item.text || item.title || item.highlight || item.summary || item.description
+            const lvl = levelToPL(item.level || item.impact || item.priority)
+            if (text && lvl) return `${String(text)} — ${lvl}`
+            if (text) return String(text)
+            // Fallback: join string-ish values
+            const values = Object.values(item).filter(v => typeof v === 'string') as string[]
+            return values.length > 0 ? values[0] : `Pozycja ${index + 1}`
           } else {
-            return String(item || `Item ${index + 1}`)
+            return String(item || `Pozycja ${index + 1}`)
           }
         } catch (e) {
-          return `Item ${index + 1}`
+          return `Pozycja ${index + 1}`
         }
       }).filter((item: string) => item && item.trim().length > 0)
     }
 
-    // AGGRESSIVE sanitization - force everything to strings
-    const sanitizedTechnicalSkills = sanitizeArray(result.technical_skills || [])
-    const sanitizedKeyHighlights = sanitizeArray(result.key_highlights || [])
-    const sanitizedStandoutProjects = sanitizeArray(result.standout_projects || [])
-    const sanitizedInterviewQuestions = sanitizeArray(result.interview_questions || [])
-    const sanitizedPotentialConcerns = sanitizeArray(result.potential_concerns || [])
+    // Helper function specialized for skills objects
+    const sanitizeSkills = (arr: any[]): string[] => {
+      if (!Array.isArray(arr)) return []
+      return arr.map((it: any, idx: number) => {
+        try {
+          if (typeof it === 'string') return it
+          if (it && typeof it === 'object') {
+            const name = it.name || it.skill || it.technology || it.tool
+            const lvl = levelToPL(it.level || it.proficiency || it.rating)
+            const years = typeof it.years === 'number' && it.years > 0 ? `${it.years} lat` : ''
+            if (name && (lvl || years)) return `${name} ${lvl ? `— ${lvl}` : ''}${years ? (lvl ? ", " : " ") + years : ''}`
+            if (name) return String(name)
+            const values = Object.values(it).filter(v => typeof v === 'string') as string[]
+            return values[0] || `Umiejętność ${idx + 1}`
+          }
+          return String(it || `Umiejętność ${idx + 1}`)
+        } catch {
+          return `Umiejętność ${idx + 1}`
+        }
+      }).filter((s: string) => s && s.trim().length > 0)
+    }
+
+    // Sanitization
+    const sanitizedTechnicalSkills = sanitizeSkills(result.technical_skills || [])
+    // Zbuduj sensowne "Kluczowe atuty"
+    let sanitizedKeyHighlights = sanitizeHighlights(result.key_highlights || [])
+    if (sanitizedKeyHighlights.length === 0) {
+      const years = result.experience_summary?.years
+      const level = result.experience_summary?.level
+      const topSkills = (result.technical_skills || []).slice(0, 3)
+      const topProject = (result.standout_projects || [])[0]
+      sanitizedKeyHighlights = [
+        years ? `${years} lat doświadczenia${level ? ` — poziom ${String(level).toLowerCase()}` : ''}` : '',
+        topSkills.length ? `Mocne strony techniczne: ${topSkills.join(', ')}` : '',
+        topProject ? `Wyróżniający projekt: ${String(topProject)}` : ''
+      ].filter(Boolean)
+    } else {
+      // Zamień gołe "high/medium/low" na bardziej ludzkie opisy
+      sanitizedKeyHighlights = sanitizedKeyHighlights.map((h: string) => {
+        const s = h.trim().toLowerCase()
+        if (s === 'high' || s === 'wysoki') return 'Silne kompetencje w kluczowych obszarach'
+        if (s === 'medium' || s === 'średni') return 'Dobre dopasowanie z potencjałem do rozwoju'
+        if (s === 'low' || s === 'niski') return 'Częściowe dopasowanie — obszary do wzmocnienia'
+        return h
+      })
+    }
+    const sanitizedStandoutProjects = sanitizeHighlights(result.standout_projects || [])
+    const sanitizedInterviewQuestions = sanitizeHighlights(result.interview_questions || [])
+    const sanitizedPotentialConcerns = sanitizeHighlights(result.potential_concerns || [])
 
     return {
       ...result,
@@ -138,16 +218,13 @@ export function CvAnalysis({ appId }: { appId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Tylko przycisk odświeżania, jeśli analiza już istnieje */}
-      {result && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
-          <Button size="sm" variant="outline" onClick={() => run(true)} disabled={loading}>
-            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Ponów analizę
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
+        <Button size="sm" variant="outline" onClick={() => run(!result)} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          {result ? 'Ponów analizę' : 'Uruchom analizę'}
+        </Button>
+      </div>
       
       {/* Stan ładowania dla pierwszego wywołania */}
       {loading && !result && (
@@ -187,7 +264,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                     <User className="h-5 w-5" />
                     Podsumowanie
                   </CardTitle>
-                  {result.compatibility_score && (
+                  {typeof result.compatibility_score === 'number' && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Dopasowanie:</span>
                       <span className={`text-lg font-bold ${getScoreColor(result.compatibility_score)}`}>
@@ -199,6 +276,14 @@ export function CvAnalysis({ appId }: { appId: string }) {
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-6 mb-4">{result.summary}</p>
+              {typeof result.compatibility_score === 'number' && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden mb-4">
+                  <div
+                    className="h-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400"
+                    style={{ width: `${Math.max(0, Math.min(100, result.compatibility_score))}%` }}
+                  />
+                </div>
+              )}
                 
                 {result.key_highlights && result.key_highlights.length > 0 && (
                   <div>
@@ -228,18 +313,27 @@ export function CvAnalysis({ appId }: { appId: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <TooltipProvider>
                   <div className="flex flex-wrap gap-1.5">
                     {result.technical_skills.map((skill, index) => {
                       // Ensure skill is always a string
                       const skillText = String(skill || `Skill ${index + 1}`).trim()
-                      
+                      const hint = 'Umiejętność z CV / analizy AI'
                       return (
-                        <Badge key={`skill-${index}`} variant="secondary" className="text-xs">
-                          {skillText}
-                        </Badge>
+                        <Tooltip key={`skill-${index}`}>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className="text-xs">
+                              {skillText}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <span>{hint}</span>
+                          </TooltipContent>
+                        </Tooltip>
                       )
                     })}
                   </div>
+                  </TooltipProvider>
                 </CardContent>
               </Card>
             )}

@@ -13,7 +13,7 @@ export default async function RecruiterCandidatesPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect("/auth/signin")
 
-  const applications = await prisma.candidateApplication.findMany({
+  const applications = await prisma.candidateApplication.findMany(({ 
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {
@@ -23,10 +23,11 @@ export default async function RecruiterCandidatesPage() {
       email: true,
       position: true,
       experience: true,
+      status: true,
       createdAt: true,
       cvFileName: true,
     },
-  })
+  } as any))
 
   return (
     <div className="flex h-screen bg-background">
