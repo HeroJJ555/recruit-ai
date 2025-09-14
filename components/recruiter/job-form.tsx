@@ -81,7 +81,14 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
   }
 
   const formContent = (
-    <form action={handleSubmit} className="space-y-8">
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault()
+        const fd = new FormData(e.currentTarget as HTMLFormElement)
+        await handleSubmit(fd)
+      }}
+      className="space-y-8"
+    >
       <fieldset className="space-y-6">
         <legend className="font-semibold text-sm tracking-wide text-muted-foreground">Podstawowe informacje</legend>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

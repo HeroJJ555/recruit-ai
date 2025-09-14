@@ -105,7 +105,7 @@ export function CandidateList() {
         },
         body: JSON.stringify({
           candidateIds: selectedIds,
-          action: action === 'interview' ? 'INTERVIEW' : action === 'reject' ? 'REJECTED' : 'WAITING'
+          action: action === 'interview' ? 'interview' : action === 'reject' ? 'reject' : 'waiting'
         })
       })
 
@@ -116,7 +116,7 @@ export function CandidateList() {
         // Update local state
         setCandidates(prev => prev.map(candidate => 
           selectedIds.includes(candidate.id) 
-            ? { ...candidate, status: action === 'interview' ? 'INTERVIEW' : action === 'reject' ? 'REJECTED' : 'WAITING' }
+            ? { ...candidate, status: action === 'interview' ? 'interview' : action === 'reject' ? 'rejected' : 'waiting' }
             : candidate
         ))
         

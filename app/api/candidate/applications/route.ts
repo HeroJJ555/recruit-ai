@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidateTag } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { enqueueCandidateAnalysis } from "@/lib/analysis-queue"
 
 // GET /api/candidate/applications
 export async function GET(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Only select necessary fields to improve performance
     const applications = await prisma.candidateApplication.findMany({
-      select: {
+      select: ({
         id: true,
         firstName: true,
         lastName: true,
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
             createdAt: true
           }
         } as any
-      },
+      }) as any,
       orderBy: { createdAt: "desc" },
       take: 50, // Limit results for better performance
     })
@@ -205,12 +206,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Enqueue analysis FIFO
+      try { enqueueCandidateAnalysis(created.id) } catch {}
       revalidateTag("candidates")
 
       return NextResponse.json({ 
         success: true, 
         data: created,
-        message: "Aplikacja została przesłana pomyślnie" 
+        message: "Aplikacja została przesłana pomyślnie (analiza w kolejce)" 
       })
 
     } else {
@@ -339,12 +342,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Enqueue analysis FIFO
+      try { enqueueCandidateAnalysis(created.id) } catch {}
       revalidateTag("candidates")
 
       return NextResponse.json({ 
         success: true, 
         data: created,
-        message: "Aplikacja została przesłana pomyślnie" 
+        message: "Aplikacja została przesłana pomyślnie (analiza w kolejce)" 
       })
     }
   } catch (error) {

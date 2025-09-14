@@ -36,15 +36,15 @@ export function CvAnalysis({ appId }: { appId: string }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [hasInitialLoad, setHasInitialLoad] = useState(false)
 
   // Automatyczne uruchomienie analizy przy załadowaniu komponentu
   useEffect(() => {
-    if (!hasInitialLoad) {
-      setHasInitialLoad(true)
-      run(false)
-    }
-  }, [hasInitialLoad])
+    // Reset state on app change and run fresh analysis
+    setResult(null)
+    setError(null)
+    run(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId])
 
   const run = async (refresh = false) => {
     setLoading(true)

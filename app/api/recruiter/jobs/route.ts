@@ -51,8 +51,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const currentUser = session.user as any
     const jobModel = (prisma as any).job
     if (!jobModel) {
       return NextResponse.json({ error: "Model Job nie jest dostępny – uruchom migrację: npx prisma migrate dev && npx prisma generate" }, { status: 500 })
@@ -71,8 +72,46 @@ export async function POST(req: NextRequest) {
       slug = `${baseSlug}-${i++}`
     }
 
-  const created = await jobModel.create({
-      data: {
+    // Resolve a valid ownerId that exists in the DB to avoid FK errors
+    async function ensureOwnerId(): Promise<string | null> {
+      try {
+        const sid = currentUser?.id as string | undefined
+        const email = currentUser?.email as string | undefined
+        const name = currentUser?.name as string | undefined
+        const image = currentUser?.image as string | undefined
+
+        // Prefer id lookup
+        if (sid) {
+          const byId = await (prisma as any).user.findUnique({ where: { id: sid } })
+          if (byId) return byId.id
+          if (email) {
+            // Create user with the known id to match session
+            try {
+              const created = await (prisma as any).user.create({ data: { id: sid, email, name: name ?? null, image: image ?? null } })
+              console.info("Created missing User for session id", created.id)
+              return created.id
+            } catch (e) {
+              console.warn("Failed to create User with session id; trying email-only:", e)
+            }
+          }
+        }
+
+        // Fallback to email lookup/create
+        if (email) {
+          const byEmail = await (prisma as any).user.findUnique({ where: { email } })
+          if (byEmail) return byEmail.id
+          const createdByEmail = await (prisma as any).user.create({ data: { email, name: name ?? null, image: image ?? null } })
+          console.info("Created missing User by email", createdByEmail.id)
+          return createdByEmail.id
+        }
+      } catch (e) {
+        console.warn("ensureOwnerId failed, falling back to null:", e)
+      }
+      return null
+    }
+    const ownerId = await ensureOwnerId()
+
+  const data: any = {
         title: parsed.title,
         slug: slug,
         department: parsed.department,
@@ -86,12 +125,12 @@ export async function POST(req: NextRequest) {
         openings: parsed.openings ?? 1,
         status: parsed.status ?? (parsed.publish ? "OPEN" : "DRAFT"),
         publishedAt: parsed.publish ? new Date() : null,
-        ownerId: (session.user as any)?.id ?? null,
         // Try to store goldenCandidate JSON directly (requires migrated schema)
         ...(parsed.goldenCandidate ? { /* @ts-ignore */ goldenCandidate: parsed.goldenCandidate } : {}),
-      },
-      select: { id:true, slug:true },
-    })
+      }
+    if (ownerId) data.ownerId = ownerId
+    console.debug("Creating Job with ownerId:", ownerId)
+    const created = await jobModel.create({ data, select: { id:true, slug:true } })
 
     // Try to persist goldenCandidate profile
     const golden = parsed.goldenCandidate

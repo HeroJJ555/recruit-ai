@@ -844,8 +844,10 @@ async function writeCached(bucket: string, appId: string, value: any) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const internalKey = req.headers.get('x-internal-analysis-key') || ''
+  const allowInternal = internalKey && internalKey === (process.env.INTERNAL_ANALYSIS_KEY || '')
   const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session && !allowInternal) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const search = new URL(req.url).searchParams
   const refresh = search.get('refresh') === '1'
@@ -854,7 +856,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const app = await prisma.candidateApplication.findUnique({
     where: { id: params.id },
     include: { 
-      cvAnalysis: true as any,
+      cvAnalysis: true,
       job: {
         select: {
           title: true,

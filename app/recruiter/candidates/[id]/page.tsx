@@ -10,6 +10,7 @@ import { FileDown, Mail, Phone, Briefcase, Award, GraduationCap, FileText, Calen
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CvAnalysis } from "@/components/recruiter/cv-analysis"
+import { CandidateActions } from "@/components/recruiter/candidate-actions"
 
 interface CandidateDetailPageProps { params: { id: string } }
 
@@ -66,6 +67,8 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
                   </Button>
                 </Link>
               ) : null}
+              {/* Candidate-level actions */}
+              <CandidateActions candidateId={candidate.id} />
               <Link href="/recruiter">
                 <Button size="sm" variant="outline">Wróć</Button>
               </Link>

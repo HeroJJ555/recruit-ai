@@ -42,7 +42,14 @@ export default function RegisterPage() {
               <h1 className="font-heading text-2xl font-bold">Rejestracja</h1>
               <p className="text-muted-foreground text-sm">Utwórz konto, aby korzystać z panelu</p>
             </div>
-            <form action={onSubmit} className="space-y-4">
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault()
+                const fd = new FormData(e.currentTarget as HTMLFormElement)
+                await onSubmit(fd)
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="name">Imię i nazwisko</Label>
                 <Input id="name" name="name" placeholder="Jan Kowalski" required />

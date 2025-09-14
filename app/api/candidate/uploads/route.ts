@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { enqueueCandidateAnalysis } from "@/lib/analysis-queue"
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,10 +38,8 @@ export async function POST(req: NextRequest) {
     // Trigger CV analysis AFTER successful upload if applicationId is provided
     if (applicationId) {
       try {
-        // Schedule background analysis - fire and forget
-        fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/candidate/applications/${applicationId}/analyze`, {
-          method: 'GET',
-        }).catch(() => {}) // Silent fail - analysis can be triggered manually later
+        // Enqueue background analysis via in-process FIFO queue
+        enqueueCandidateAnalysis(applicationId)
       } catch (error) {
         // Don't fail upload if analysis scheduling fails
         console.log('Failed to schedule CV analysis:', error)

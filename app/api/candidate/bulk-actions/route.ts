@@ -11,13 +11,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { candidateIds, action } = await req.json()
+  const { candidateIds, action } = await req.json()
 
     if (!candidateIds || !Array.isArray(candidateIds) || candidateIds.length === 0) {
       return NextResponse.json({ error: "candidateIds array is required" }, { status: 400 })
     }
 
-    if (!action || !['reject', 'waiting', 'interview', 'hired', 'withdrawn'].includes(action)) {
+    // Normalize action to accepted internal values (lowercase)
+    const normalizeAction = (raw: unknown): string | null => {
+      if (!raw) return null
+      const s = String(raw).trim().toLowerCase()
+      if (["reject", "rejected"].includes(s)) return "rejected"
+      if (["wait", "waiting", "pending"].includes(s)) return "waiting"
+      if (["interview", "interview_scheduled", "interview-completed", "interview_completed"].includes(s)) return "interview"
+      if (["hired"].includes(s)) return "hired"
+      if (["withdraw", "withdrawn"].includes(s)) return "withdrawn"
+      return null
+    }
+
+    const normalizedAction = normalizeAction(action)
+    if (!normalizedAction) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }
 
@@ -28,18 +41,18 @@ export async function POST(req: NextRequest) {
           in: candidateIds
         }
       },
-      data: {
-        status: action,
+      data: ({
+        status: normalizedAction,
         updatedAt: new Date()
-      }
+      } as any)
     })
 
     // Log the bulk action
-    console.log(`Bulk action performed: ${action} on ${updateResult.count} candidates by user ${session.user?.email}`)
+    console.log(`Bulk action performed: ${normalizedAction} on ${updateResult.count} candidates by user ${session.user?.email}`)
 
     return NextResponse.json({ 
       success: true, 
-      message: `Successfully updated ${updateResult.count} candidates to status: ${action}`,
+      message: `Successfully updated ${updateResult.count} candidates to status: ${normalizedAction}`,
       updatedCount: updateResult.count
     })
 
