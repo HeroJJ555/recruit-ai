@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,7 +33,7 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
         return value && value.length > 0 ? value : null
       }
 
-      const payload = {
+      const payload: any = {
         title: formData.get("title")?.toString() || "",
         department: getFieldValue("department"),
         location: getFieldValue("location"),
@@ -53,8 +53,23 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
         publish,
       }
 
-      const response = await fetch('/api/recruiter/jobs', {
-        method: 'POST',
+      // In edit mode, remove unchanged fields to avoid accidental overwrites or duplications
+      if (editMode && initialData) {
+        for (const key of Object.keys(payload)) {
+          if (key === 'goldenCandidate') continue
+          if (payload[key] === initialData[key]) delete payload[key]
+        }
+        // Clean empty goldenCandidate
+        if (payload.goldenCandidate && !Object.values(payload.goldenCandidate).some(v => v)) {
+          delete payload.goldenCandidate
+        }
+      }
+
+      const url = editMode && initialData?.id ? `/api/recruiter/jobs/${initialData.id}` : '/api/recruiter/jobs'
+      const method = editMode ? 'PATCH' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })

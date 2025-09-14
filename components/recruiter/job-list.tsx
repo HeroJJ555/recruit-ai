@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { JobStatusBadge } from "./job-status-badge"
 import { Button } from "@/components/ui/button"
 import { formatDistanceToNow } from "date-fns"
@@ -138,7 +139,11 @@ export function JobList() {
           <div key={job.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{job.title}</h3>
+                <h3 className="font-semibold">
+                  <Link href={`/recruiter/jobs/${job.id}`} className="hover:underline" aria-label={`Zobacz szczegóły oferty ${job.title}`}>
+                    {job.title}
+                  </Link>
+                </h3>
                 <JobStatusBadge status={job.status} />
               </div>
               <p className="text-xs text-muted-foreground">
