@@ -1,4 +1,5 @@
-import { Client } from "@gradio/client"
+import { perplexity } from '@ai-sdk/perplexity'
+import { generateText } from 'ai'
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 
@@ -6,38 +7,79 @@ function safeJSONParse<T = any>(s: string): T | null {
   try { return JSON.parse(s) } catch { return null }
 }
 
-async function callGradio(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+async function callPuter(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
   try {
-    console.log('Connecting to Gradio client: NotASI/Llama-3.1-Storm-8B')
-    const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
-    console.log('Gradio client connected successfully')
+    console.log('🎯 Using Puter.js for free Claude AI access...')
     
-    // Combine system and user messages for Gradio format
+    // Combine system and user messages
     const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
     const userMessage = messages.find(m => m.role === 'user')?.content || ""
     
     const prompt = opts?.json 
-      ? `${userMessage}\n\nPlease respond with valid JSON only.`
-      : userMessage
+      ? `${systemMessage}\n\nUser: ${userMessage}\n\nPlease respond with valid JSON only, no markdown or additional text.`
+      : `${systemMessage}\n\nUser: ${userMessage}`
 
-    console.log('Sending request to Gradio with prompt length:', prompt.length)
-    const result = await client.predict("/chat", {
-      message: prompt,
-      system_prompt: systemMessage,
-      temperature: 0.2,
-      max_new_tokens: 2048,
-      top_p: 0.9,
-      top_k: 40,
-      penalty: 1.1,
+    console.log('📤 Sending request to Puter with prompt length:', prompt.length)
+    
+    // Use fetch to call Puter API directly since we can't use their browser SDK in Node.js
+    const response = await fetch('https://api.puter.com/ai/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.AI_API_TOKEN || ''}`
+      },
+      body: JSON.stringify({
+        message: prompt,
+        model: opts?.model || 'claude-sonnet-4',
+        stream: false
+      })
     })
 
-    console.log('Gradio prediction completed, result type:', typeof result, 'data type:', typeof result.data)
-    const content = Array.isArray(result.data) ? (result.data[0] || '') : String(result.data || '')
-    console.log('Extracted content length:', content.length)
-    return content
+    if (!response.ok) {
+      throw new Error(`Puter API error: ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    const text = data.response || data.content || data.message || ''
+
+    console.log('✅ Puter response received, length:', text.length)
+    return text
   } catch (error) {
-    console.error('Gradio error details:', error)
-    throw new Error(`Gradio error: ${error}`)
+    console.error('❌ Puter error details:', error)
+    throw new Error(`Puter error: ${error}`)
+  }
+}
+
+async function callPerplexity(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+  try {
+    // Check if API key is available
+    if (!process.env.PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY === 'your-perplexity-api-key-here') {
+      throw new Error('PERPLEXITY_API_KEY not configured')
+    }
+
+    console.log('🔮 Connecting to Perplexity AI...')
+    
+    // Combine system and user messages
+    const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
+    const userMessage = messages.find(m => m.role === 'user')?.content || ""
+    
+    const prompt = opts?.json 
+      ? `${systemMessage}\n\nUser: ${userMessage}\n\nPlease respond with valid JSON only, no markdown or additional text.`
+      : `${systemMessage}\n\nUser: ${userMessage}`
+
+    console.log('📤 Sending request to Perplexity with prompt length:', prompt.length)
+    
+    const { text } = await generateText({
+      model: perplexity(opts?.model || 'sonar'),
+      prompt: prompt,
+      maxRetries: 2,
+    })
+
+    console.log('✅ Perplexity response received, length:', text.length)
+    return text
+  } catch (error) {
+    console.error('❌ Perplexity error details:', error)
+    throw new Error(`Perplexity error: ${error}`)
   }
 }
 
@@ -82,44 +124,53 @@ async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json
 
 export async function chatJSON(prompt: string) {
   console.log('=== chatJSON called ===')
-  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'gradio' // Default to Gradio (free)
+  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'puter' // Default to Puter (free Claude)
   console.log('AI Provider:', provider)
   
   const messages: ChatMessage[] = [
-    { role: 'system', content: 'You are a helpful assistant. Always reply with strict JSON only.' },
+    { role: 'system', content: 'You are a helpful assistant that analyzes CVs and resumes. Always reply with strict JSON only.' },
     { role: 'user', content: prompt }
   ]
   
   let content = ''
   
-  // Try providers in order: Gradio (free) -> Ollama (free local) -> OpenAI (paid) -> Heuristic (fallback)
-  if (provider === 'gradio') {
+  // Try providers in order: Puter (free Claude) -> Perplexity (free) -> Ollama (free local) -> OpenAI (paid) -> Heuristic (fallback)
+  if (provider === 'puter' || !provider) {
     try {
-      console.log('Attempting Gradio connection...')
-      content = await callGradio(messages, { json: true })
-      console.log('Gradio response length:', content.length)
+      console.log('🎯 Attempting Puter (Claude) connection...')
+      content = await callPuter(messages, { json: true })
+      console.log('✅ Puter response length:', content.length)
     } catch (error) {
-      console.error('Gradio failed, trying Ollama:', error)
-      if (process.env.OLLAMA_HOST) {
-        console.log('Attempting Ollama fallback...')
-        content = await callOllama(messages, { json: true })
-        console.log('Ollama response length:', content.length)
-      } else {
-        console.log('No Ollama host configured, throwing error')
-        throw error
+      console.error('❌ Puter failed, trying Perplexity:', error)
+      try {
+        console.log('🔮 Attempting Perplexity fallback...')
+        content = await callPerplexity(messages, { json: true })
+        console.log('✅ Perplexity response length:', content.length)
+      } catch (perplexityError) {
+        console.error('❌ Perplexity also failed:', perplexityError)
+        throw error // Use original Puter error
       }
     }
+  } else if (provider === 'perplexity') {
+    try {
+      console.log('🔮 Using Perplexity provider...')
+      content = await callPerplexity(messages, { json: true })
+      console.log('✅ Perplexity response length:', content.length)
+    } catch (error) {
+      console.error('❌ Perplexity failed, trying Puter:', error)
+      content = await callPuter(messages, { json: true })
+      console.log('✅ Puter fallback response length:', content.length)
+    }
   } else if (provider === 'ollama' && process.env.OLLAMA_HOST) {
-    console.log('Using Ollama provider...')
+    console.log('🦙 Using Ollama provider...')
     content = await callOllama(messages, { json: true })
-    console.log('Ollama response length:', content.length)
+    console.log('✅ Ollama response length:', content.length)
   } else if (provider === 'openai' && process.env.OPENAI_API_KEY) {
-    console.log('Using OpenAI provider...')
+    console.log('🤖 Using OpenAI provider...')
     content = await callOpenAI(messages, { json: true })
-    console.log('OpenAI response length:', content.length)
+    console.log('✅ OpenAI response length:', content.length)
   } else {
-    console.log('No AI provider available, falling back to heuristic analysis')
-    // Fallback to heuristic analysis
+    console.log('❌ No AI provider available, falling back to heuristic analysis')
     throw new Error('No AI provider available, falling back to heuristic analysis')
   }
   
