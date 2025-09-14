@@ -112,6 +112,9 @@ export default function MessagesContent() {
   const [emailTemplate, setEmailTemplate] = useState('');
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
+  const [aiTone, setAiTone] = useState<'positive' | 'neutral' | 'negative'>('neutral');
+  const [aiInstructions, setAiInstructions] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [messageHistory, setMessageHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -224,36 +227,32 @@ export default function MessagesContent() {
     }
   };
 
-  const generateAIFeedback = async (candidate: Candidate) => {
-    const { cvAnalysis } = candidate;
-    
+  // Unified AI generation helper using new /api/mail/generate endpoint
+  const generateAIEmail = async (candidate: Candidate): Promise<string | null> => {
     try {
-      const response = await fetch('/api/ai/feedback', {
+      const response = await fetch('/api/mail/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidate: {
             name: candidate.name,
             position: candidate.position,
-            score: cvAnalysis.score,
-            strengths: cvAnalysis.strengths,
-            weaknesses: cvAnalysis.weaknesses,
-            recommendation: cvAnalysis.recommendation
-          }
-        }),
+            score: candidate.cvAnalysis.score,
+            strengths: candidate.cvAnalysis.strengths,
+            weaknesses: candidate.cvAnalysis.weaknesses,
+            recommendation: candidate.cvAnalysis.recommendation
+          },
+          tone: aiTone,
+          recruiterInstructions: aiInstructions || undefined,
+          language: 'pl'
+        })
       });
-
-      if (!response.ok) {
-        throw new Error('Błąd generowania feedbacku');
-      }
-
+      if (!response.ok) return null;
       const data = await response.json();
-      return data.feedback;
-    } catch (error) {
-      console.error('Błąd AI feedback:', error);
-      return generateFallbackFeedback(candidate);
+      return data.content || null;
+    } catch (e) {
+      console.error('AI generate error', e);
+      return null;
     }
   };
 
@@ -314,9 +313,21 @@ Zespół Rekrutacji`;
         }
       }
       
-      // Use AI feedback if selected
+      // If AI mode chosen and we don't yet have generated text, auto-generate now
       if (emailTemplate === 'ai-feedback') {
-        finalMessage = await generateAIFeedback(selectedCandidate);
+        if (!finalMessage.trim()) {
+          const aiText = await generateAIEmail(selectedCandidate);
+          if (aiText) {
+            finalMessage = aiText;
+          } else {
+            // fallback
+            finalMessage = generateFallbackFeedback(selectedCandidate);
+            toast({
+              title: 'AI niedostępne',
+              description: 'Użyto fallback zamiast generowanego tekstu.',
+            });
+          }
+        }
       }
 
       const response = await fetch('/api/mail/feedback', {
@@ -540,19 +551,105 @@ Zespół Rekrutacji`;
                     )}
 
                     {emailTemplate === 'ai-feedback' && (
-                      <Alert>
-                        <FileText className="h-4 w-4" />
-                        <AlertTitle>AI Feedback</AlertTitle>
-                        <AlertDescription>
-                          Wiadomość zostanie automatycznie wygenerowana na podstawie analizy CV kandydata. 
-                          Ocena: {selectedCandidate.cvAnalysis.score}/100 - {selectedCandidate.cvAnalysis.recommendation === 'hire' ? 'Polecam' : selectedCandidate.cvAnalysis.recommendation === 'maybe' ? 'Do rozważenia' : 'Odrzuć'}
-                        </AlertDescription>
-                      </Alert>
+                      <div className="space-y-4">
+                        <Alert>
+                          <FileText className="h-4 w-4" />
+                          <AlertTitle>AI Feedback</AlertTitle>
+                          <AlertDescription>
+                            Wiadomość generowana przez model (llama). Ocena: {selectedCandidate.cvAnalysis.score}/100 — {selectedCandidate.cvAnalysis.recommendation === 'hire' ? 'Polecam' : selectedCandidate.cvAnalysis.recommendation === 'maybe' ? 'Do rozważenia' : 'Odrzuć'}
+                          </AlertDescription>
+                        </Alert>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="space-y-2 md:col-span-1">
+                            <Label>Ton wiadomości</Label>
+                            <Select value={aiTone} onValueChange={(v: any) => setAiTone(v)}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="positive">Pozytywny</SelectItem>
+                                <SelectItem value="neutral">Neutralny</SelectItem>
+                                <SelectItem value="negative">Negatywny</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Dodatkowe instrukcje dla AI (opcjonalnie)</Label>
+                            <Textarea
+                              rows={3}
+                              placeholder="Np. skróć do 4 akapitów, dodaj zaproszenie na rozmowę online, zachowaj empatyczny ton..."
+                              value={aiInstructions}
+                              onChange={(e) => setAiInstructions(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={aiGenerating}
+                            onClick={async () => {
+                              if (!selectedCandidate) return;
+                              setAiGenerating(true);
+                              try {
+                                const response = await fetch('/api/mail/generate', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    candidate: {
+                                      name: selectedCandidate.name,
+                                      position: selectedCandidate.position,
+                                      score: selectedCandidate.cvAnalysis.score,
+                                      strengths: selectedCandidate.cvAnalysis.strengths,
+                                      weaknesses: selectedCandidate.cvAnalysis.weaknesses,
+                                      recommendation: selectedCandidate.cvAnalysis.recommendation
+                                    },
+                                    tone: aiTone,
+                                    recruiterInstructions: aiInstructions || undefined,
+                                    language: 'pl'
+                                  })
+                                });
+                                if (!response.ok) throw new Error('Błąd generowania');
+                                const data = await response.json();
+                                if (data.content) {
+                                  setCustomMessage(data.content);
+                                }
+                              } catch (err) {
+                                toast({
+                                  title: 'Błąd AI',
+                                  description: 'Nie udało się wygenerować treści przy użyciu modelu. Użyj własnej treści.',
+                                  variant: 'destructive'
+                                });
+                              } finally {
+                                setAiGenerating(false);
+                              }
+                            }}
+                          >
+                            {aiGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Bot className="h-4 w-4 mr-2" />}
+                            {aiGenerating ? 'Generowanie...' : 'Wygeneruj treść'}
+                          </Button>
+                          {customMessage && (
+                            <Badge variant="outline" className="text-xs">Treść gotowa</Badge>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Wygenerowana treść (możesz edytować przed wysłaniem)</Label>
+                          <Textarea
+                            rows={8}
+                            value={customMessage}
+                            onChange={(e) => setCustomMessage(e.target.value)}
+                            placeholder="Kliknij 'Wygeneruj treść' aby utworzyć wiadomość..."
+                          />
+                        </div>
+                      </div>
                     )}
 
-                    <Button 
-                      onClick={handleSendEmail} 
-                      disabled={isLoading || (!customMessage && emailTemplate === 'custom') || !emailTemplate}
+                    <Button
+                      onClick={handleSendEmail}
+                      disabled={isLoading || !emailTemplate || (
+                        (emailTemplate === 'custom' && !customMessage.trim()) ||
+                        (emailTemplate === 'ai-feedback' && !customMessage.trim())
+                      )}
                       className="w-full"
                     >
                       <Send className="mr-2 h-4 w-4" />

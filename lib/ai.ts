@@ -75,6 +75,45 @@ async function callOllama(messages: ChatMessage[], opts?: { model?: string; json
   return content
 }
 
+// Plain text chat with fallback chain (OpenAI -> Puter -> Perplexity -> Ollama)
+export const smartChatPlain = async (systemPrompt: string, userPrompt: string): Promise<string> => {
+  const messages: ChatMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ]
+  // 1. OpenAI
+  try {
+    if (process.env.OPENAI_API_KEY) {
+      return await callOpenAI(messages, { json: false })
+    }
+  } catch (e) {
+    console.warn('smartChatPlain: OpenAI failed', e)
+  }
+  // 2. Puter Claude Haiku
+  try {
+    return await puterClaudeChat(userPrompt)
+  } catch (e) {
+    console.warn('smartChatPlain: Puter failed', e)
+  }
+  // 3. Perplexity
+  try {
+    if (process.env.PERPLEXITY_API_KEY) {
+      return await perplexityChat(userPrompt)
+    }
+  } catch (e) {
+    console.warn('smartChatPlain: Perplexity failed', e)
+  }
+  // 4. Ollama local
+  try {
+    if (process.env.OLLAMA_HOST) {
+      return await callOllama(messages, { json: false })
+    }
+  } catch (e) {
+    console.warn('smartChatPlain: Ollama failed', e)
+  }
+  throw new Error('No AI provider available')
+}
+
 async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY')

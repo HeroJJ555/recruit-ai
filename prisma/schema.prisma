@@ -21,6 +21,7 @@ model User {
   candidateApplications CandidateApplication[]
   jobs                  Job[]
   meetings              Meeting[]
+  messageHistory        MessageHistory[]
   sessions              Session[]
   messagesSent          MessageHistory[]
 }
@@ -167,8 +168,6 @@ model MessageHistory {
   id                     String               @id @default(cuid())
   candidateApplicationId String
   candidateApplication   CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
-  
-  // Message content
   subject                String
   content                String
   template               String?              // Template used (positive, neutral, negative, ai)
@@ -180,10 +179,8 @@ model MessageHistory {
   // Sender info
   senderUserId           String?
   senderUser             User?                @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
-  
-  // Email service details
-  mailProvider           String               @default("mailchimp") // mailchimp, resend, etc.
-  externalMessageId      String?              // ID from mail service
+  mailProvider           String               @default("mailchimp")
+  externalMessageId      String?
   status                 MessageStatus        @default(SENT)
   
   // Metadata
@@ -200,21 +197,16 @@ model MessageHistory {
   @@index([status])
 }
 
-enum JobStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-  OPEN
-  PAUSED
-  CLOSED
-}
-
 enum ApplicationStatus {
   PENDING
+  REVIEWED
+  CONTACTED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
   REJECTED
+  HIRED
   WAITING
   INTERVIEW
-  HIRED
   WITHDRAWN
 }
 
@@ -223,6 +215,15 @@ enum MeetingStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  OPEN
+  PAUSED
+  CLOSED
 }
 
 enum MessageStatus {
