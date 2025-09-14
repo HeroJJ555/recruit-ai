@@ -47,12 +47,12 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <div className={cn("flex flex-col bg-sidebar border-r border-sidebar-border", className)}>
       {/* Header */}
-      <div className="flex items-center p-4 border-b border-sidebar-border space-x-2">
+      <Link href="/" aria-label="Przejdź do strony głównej" className="flex items-center p-4 border-b border-sidebar-border space-x-2">
         <div className="bg-sidebar-primary rounded-lg p-2">
           <Brain className="h-6 w-6 text-sidebar-primary-foreground" />
         </div>
         <span className="font-heading font-bold text-lg text-sidebar-foreground">RecruitAI</span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 p-4">

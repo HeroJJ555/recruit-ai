@@ -99,17 +99,31 @@ async function getMetrics(): Promise<Metrics> {
 function TrendMiniChart({ days }: { days: { date: string; count: number }[] }) {
   if (!days?.length) return <div className="text-xs text-muted-foreground">Brak danych trendu</div>
   const max = Math.max(...days.map(d => d.count), 1)
-  const w = 160
-  const h = 50
-  const step = w / (days.length - 1 || 1)
-  const points = days.map((d, i) => `${i * step},${h - (d.count / max) * (h - 4) - 2}`).join(' ')
+  const today = new Date().toISOString().slice(0,10)
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-14">
-      <polyline fill="none" stroke="hsl(var(--primary))" strokeWidth={2} points={points} strokeLinecap="round" strokeLinejoin="round" />
-      {days.map((d, i) => (
-        <circle key={d.date} cx={i * step} cy={h - (d.count / max) * (h - 4) - 2} r={2} fill="hsl(var(--primary))" />
-      ))}
-    </svg>
+    <div className="grid grid-rows-[1fr_auto] gap-3">
+      <div className="flex items-end gap-2 h-40">
+        {days.map(d => {
+          const heightPct = (d.count / max) * 100
+          const isToday = d.date === today
+          return (
+            <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                className={"w-full rounded-t-md transition-all " + (isToday ? 'bg-primary' : 'bg-primary/60')}
+                style={{ height: `calc(${heightPct}% - 4px)` }}
+                aria-label={`Dzień ${d.date}, aplikacje: ${d.count}`}
+              />
+              <span className="text-[10px] font-medium tabular-nums">{d.count}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        {days.map(d => (
+          <span key={d.date} className={d.date === today ? 'text-primary font-medium' : ''}>{d.date.slice(5)}</span>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -124,24 +138,23 @@ async function MetricsSection() {
         <StatCard title="Śr. aplikacji / otwartą" value={data.avgAppsPerOpenJob} footer="Aktywność kandydatów" />
       </div>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle>Trend aplikacji (7 dni)</CardTitle>
+            <CardTitle className="flex items-center gap-2">Trend aplikacji (7 dni)
+              <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" aria-hidden />
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Podgląd dziennej liczby nowych aplikacji — wyróżniono dzisiaj.</p>
           </div>
-          <div className="text-xs text-muted-foreground">Ostatnia aktualizacja: teraz</div>
+          <div className="text-xs text-muted-foreground whitespace-nowrap">Aktualizacja: teraz</div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
             <TrendMiniChart days={data.trend.days} />
-            <div className="flex gap-2 mt-4 flex-wrap text-xs text-muted-foreground">
-              {data.trend.days.map((d: { date: string; count: number }) => (
-                <div key={d.date} className="flex flex-col items-center w-10">
-                  <span className="font-medium">{d.count}</span>
-                  <span>{d.date.slice(5)}</span>
-                </div>
-              ))}
+            <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1"><div className="h-3 w-3 rounded-sm bg-primary" /> <span>Dzisiaj</span></div>
+              <div className="flex items-center gap-1"><div className="h-3 w-3 rounded-sm bg-primary/60" /> <span>Poprzednie dni</span></div>
             </div>
             {data.warnings?.length ? (
-              <div className="mt-4 text-xs text-amber-600 space-y-1">
+              <div className="text-xs text-amber-600 space-y-1 border-t pt-2">
                 {data.warnings.map((w: string, i: number) => <p key={i}>⚠ {w}</p>)}
               </div>
             ) : null}
