@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Brain, Send, User, Bot } from "lucide-react"
+import { Brain, Send, User, Bot, ExternalLink } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 
 interface Message {
@@ -20,13 +20,28 @@ interface Message {
 export function AIAssistantFullscreen() {
   const searchParams = useSearchParams()
   const initialQuestion = searchParams.get('q') || ""
+  const contextParam = searchParams.get('context') || ""
   
-  const [messages, setMessages] = useState<Message[]>([{
+  // Spróbuj załadować kontekst z URL
+  let initialMessages: Message[] = [{
     id: "init",
     role: "assistant",
     content: "Cześć! Jestem Twoim asystentem AI. Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
     timestamp: new Date(),
-  }])
+  }]
+  
+  if (contextParam) {
+    try {
+      const decodedMessages = JSON.parse(decodeURIComponent(contextParam))
+      if (Array.isArray(decodedMessages) && decodedMessages.length > 0) {
+        initialMessages = decodedMessages
+      }
+    } catch (error) {
+      console.warn("Nie udało się załadować kontekstu rozmowy:", error)
+    }
+  }
+  
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState(initialQuestion)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -37,8 +52,15 @@ export function AIAssistantFullscreen() {
 
   // Auto-send initial question if provided
   useEffect(() => {
-    if (initialQuestion && messages.length === 1) {
-      handleSendMessage()
+    if (initialQuestion && initialQuestion.trim()) {
+      // Sprawdź czy to pytanie nie zostało już wysłane (gdy przychodzi z kontekstu)
+      const alreadyHasQuestion = messages.some(msg => 
+        msg.role === "user" && msg.content.includes(initialQuestion.trim())
+      )
+      
+      if (!alreadyHasQuestion) {
+        handleSendMessage()
+      }
     }
   }, [initialQuestion])
 
@@ -105,6 +127,17 @@ export function AIAssistantFullscreen() {
         <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
+        {contextParam && (
+          <div className="mb-4 p-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 rounded-lg animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2 text-sm text-primary">
+              <ExternalLink className="h-4 w-4" />
+              <span className="font-medium">Rozmowa kontynuowana z dashboardu</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Historia rozmowy została pomyślnie przeniesiona. Możesz kontynuować w pełnym widoku.
+            </p>
+          </div>
+        )}
         <ScrollArea className="flex-1 pr-4 min-h-0" ref={scrollAreaRef as any} onScroll={handleScroll}>
           <div className="space-y-4" >
             {messages.map(message => {

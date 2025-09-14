@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Brain, Send, User, Bot } from "lucide-react"
+import { Brain, Send, User, Bot, Maximize2, ExternalLink } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface Message {
@@ -59,19 +59,41 @@ export function AIAssistantWidget() {
     
     // Przekieruj do zakładki Asystent AI z pytaniem w URL
     const encodedQuestion = encodeURIComponent(userContent)
-    router.push(`/recruiter/ai-assistant?q=${encodedQuestion}`)
+    const encodedMessages = encodeURIComponent(JSON.stringify(messages))
+    router.push(`/recruiter/ai-assistant?q=${encodedQuestion}&context=${encodedMessages}`)
+  }
+
+  function handleExpandToFullscreen() {
+    // Przekaż całą historię rozmowy do pełnego widoku
+    const encodedMessages = encodeURIComponent(JSON.stringify(messages))
+    router.push(`/recruiter/ai-assistant?context=${encodedMessages}`)
   }
 
 
 
   return (
-    <Card className="h-[500px] flex flex-col">
+    <Card className="h-[500px] flex flex-col transition-all duration-200 hover:shadow-md">
       <CardHeader className="flex-shrink-0">
-        <CardTitle className="flex items-center space-x-2">
-          <Brain className="h-5 w-5 text-primary" />
-          <span>Asystent AI dla HR</span>
-        </CardTitle>
-        <CardDescription>Specjalistyczne wsparcie w procesach rekrutacyjnych i zarządzaniu talentami</CardDescription>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="flex items-center space-x-2">
+              <Brain className="h-5 w-5 text-primary" />
+              <span>Asystent AI dla HR</span>
+            </CardTitle>
+            <CardDescription>Specjalistyczne wsparcie w procesach rekrutacyjnych</CardDescription>
+          </div>
+          <div className="flex items-center space-x-1 ml-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExpandToFullscreen}
+              className="h-8 w-8 p-0 opacity-60 hover:opacity-100 transition-all duration-200 hover:scale-110 hover:bg-primary/10"
+              title="Rozwiń do pełnego widoku"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         <ScrollArea className="flex-1 pr-4 min-h-0" ref={scrollAreaRef as any} onScroll={handleScroll}>
@@ -110,14 +132,22 @@ export function AIAssistantWidget() {
         <div className="flex-shrink-0 pt-4">
           {errorMsg && <p className="text-xs text-destructive mb-2">{errorMsg}</p>}
           <div className="flex space-x-2">
-            <Input
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Np. 'Jak ocenić kandydata na stanowisko developera?' lub 'Przygotuj pytania do rozmowy kwalifikacyjnej'"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
-              disabled={isLoading}
-            />
+            <div className="flex-1 relative">
+              <Input
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="Np. 'Jak ocenić kandydata na stanowisko developera?'"
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
+                disabled={isLoading}
+              />
+              {messages.length > 1 && (
+                <div className="absolute -top-6 right-0 text-xs text-muted-foreground flex items-center gap-1">
+                  <ExternalLink className="h-3 w-3" />
+                  Kliknij <Maximize2 className="h-3 w-3" /> aby rozwinąć
+                </div>
+              )}
+            </div>
             <Button onClick={handleSendMessage} disabled={isLoading || !inputValue.trim()}>
               <Send className="h-4 w-4" />
             </Button>
