@@ -17,9 +17,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!next || !ALLOWED.has(next)) {
       return NextResponse.json({ error: 'Invalid status', allowed: Array.from(ALLOWED) }, { status: 400 })
     }
-    // Some generated Prisma client mismatch prevents typed update; fallback raw query
+    // Some generated Prisma client mismatch prevents typed update; fallback raw query with enum cast
     try {
-      await (prisma as any).$executeRawUnsafe(`UPDATE "CandidateApplication" SET "status" = $1, "updatedAt" = NOW() WHERE id = $2`, next, params.id)
+      await (prisma as any).$executeRawUnsafe(`UPDATE "CandidateApplication" SET "status" = $1::"ApplicationStatus", "updatedAt" = NOW() WHERE id = $2`, next, params.id)
     } catch (e) {
       console.error('Raw status update failed', e)
       return NextResponse.json({ error: 'Failed raw update' }, { status: 500 })
