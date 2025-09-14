@@ -78,7 +78,10 @@ function AISettings() {
     }
   }, [])
   useEffect(() => {
-    if (typeof window !== 'undefined') window.localStorage.setItem("ai-temp", String(temperature))
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem("ai-temp", String(temperature))
+      window.dispatchEvent(new CustomEvent('ai-settings:changed', { detail: { temperature } }))
+    }
   }, [temperature])
   return (
     <Card>
@@ -196,13 +199,8 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
         <TabsTrigger value="notifications">Powiadomienia</TabsTrigger>
         <TabsTrigger value="security">Bezpieczeństwo</TabsTrigger>
       </TabsList>
-      <TabsContent value="profile" className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-6">
-          <ProfileForm user={user} />
-        </div>
-        <div className="space-y-6">
-          <AISettings />
-        </div>
+      <TabsContent value="profile" className="space-y-6">
+        <ProfileForm user={user} />
       </TabsContent>
       <TabsContent value="appearance" className="space-y-6">
         <ThemeSettings />

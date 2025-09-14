@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Brain, Send, User, Bot, ExternalLink } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { useAiSettings } from "@/hooks/use-ai-settings"
 
 interface Message {
   id: string
@@ -18,6 +19,7 @@ interface Message {
 }
 
 export function AIAssistantFullscreen() {
+  const { temperature } = useAiSettings()
   const searchParams = useSearchParams()
   const initialQuestion = searchParams.get('q') || ""
   const contextParam = searchParams.get('context') || ""
@@ -92,6 +94,7 @@ export function AIAssistantFullscreen() {
       .map(m => ({ role: m.role, content: m.content }))
     const payload = {
       messages: payloadMessages,
+      temperature,
     }
     try {
       const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
@@ -119,7 +122,7 @@ export function AIAssistantFullscreen() {
           <Brain className="h-5 w-5 text-primary" />
           <span>Asystent AI</span>
         </CardTitle>
-        <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym</CardDescription>
+  <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym • temp {temperature.toFixed(2)}</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         {contextParam && (

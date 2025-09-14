@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Brain, Send, User, Bot, Maximize2, ExternalLink } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAiSettings } from "@/hooks/use-ai-settings"
 
 interface Message {
   id: string
@@ -18,6 +19,7 @@ interface Message {
 }
 
 export function AIAssistantWidget() {
+  const { temperature } = useAiSettings()
   const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([{
     id: "init",
@@ -57,16 +59,16 @@ export function AIAssistantWidget() {
     
     const userContent = inputValue.trim()
     
-    // Przekieruj do zakładki Asystent AI z pytaniem w URL
     const encodedQuestion = encodeURIComponent(userContent)
+    const temp = temperature
     const encodedMessages = encodeURIComponent(JSON.stringify(messages))
-    router.push(`/recruiter/ai-assistant?q=${encodedQuestion}&context=${encodedMessages}`)
+    router.push(`/recruiter/ai-assistant?q=${encodedQuestion}&context=${encodedMessages}&t=${temp}`)
   }
 
   function handleExpandToFullscreen() {
-    // Przekaż całą historię rozmowy do pełnego widoku
+    const temp = temperature
     const encodedMessages = encodeURIComponent(JSON.stringify(messages))
-    router.push(`/recruiter/ai-assistant?context=${encodedMessages}`)
+    router.push(`/recruiter/ai-assistant?context=${encodedMessages}&t=${temp}`)
   }
 
 
@@ -80,7 +82,7 @@ export function AIAssistantWidget() {
               <Brain className="h-5 w-5 text-primary" />
               <span>Asystent AI dla HR</span>
             </CardTitle>
-            <CardDescription>Specjalistyczne wsparcie w procesach rekrutacyjnych</CardDescription>
+            <CardDescription>Specjalistyczne wsparcie w procesach rekrutacyjnych • temperatura: {temperature.toFixed(2)}</CardDescription>
           </div>
           <div className="flex items-center space-x-1 ml-4">
             <Button

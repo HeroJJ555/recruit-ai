@@ -2,7 +2,6 @@ import { Sidebar } from "@/components/recruiter/sidebar"
 import { DashboardStats } from "@/components/recruiter/dashboard-stats"
 import { AIAssistantWidget } from "@/components/recruiter/ai-assistant-widget"
 import { CandidateList } from "@/components/recruiter/candidate-list"
-import { RecentActivity } from "@/components/recruiter/recent-activity"
 import { Button } from "@/components/ui/button"
 import { Plus, Bell } from "lucide-react"
 import { getServerSession } from "next-auth"
@@ -56,7 +55,6 @@ export default async function RecruiterDashboard() {
               {/* Right Column */}
               <div className="space-y-6">
                 <AIAssistantWidget />
-                <RecentActivity />
               </div>
             </div>
           </div>

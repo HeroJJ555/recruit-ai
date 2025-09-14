@@ -15,6 +15,7 @@ interface GenerateRequest {
   tone?: 'positive' | 'neutral' | 'negative'
   language?: 'pl' | 'en'
   recruiterInstructions?: string
+  temperature?: number
 }
 
 function buildPrompt(data: GenerateRequest): string {
@@ -28,11 +29,11 @@ function buildPrompt(data: GenerateRequest): string {
   return base
 }
 
-async function callOllamaRaw(prompt: string) {
+async function callOllamaRaw(prompt: string, temperature = 0.2) {
   const host = process.env.OLLAMA_HOST || 'http://localhost:11434'
   const model = process.env.OLLAMA_MODEL || 'llama3.1'
   const res = await fetch(`${host}/api/generate`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, stream: false })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, stream: false, options: { temperature } })
   })
   if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`)
   const data = await res.json(); return data.response as string
@@ -48,15 +49,16 @@ export async function POST(req: NextRequest) {
     if (!body?.candidate?.name || !body?.candidate?.position) {
       return NextResponse.json({ error: 'Brak wymaganych danych kandydata' }, { status: 400 })
     }
+    const temperature = typeof body.temperature === 'number' ? Math.max(0, Math.min(1, body.temperature)) : 0.2
     const prompt = buildPrompt(body)
     let content: string | null = null
     // First try multi-provider chain
     try {
-      content = await smartChatPlain('You generate professional recruitment feedback emails. Output only the email body.', prompt)
+      content = await smartChatPlain('You generate professional recruitment feedback emails. Output only the email body.', prompt, { temperature })
     } catch (chainErr) {
       console.warn('smartChatPlain chain failed, trying direct Ollama', chainErr)
       try {
-        content = await callOllamaRaw(prompt)
+        content = await callOllamaRaw(prompt, temperature)
       } catch (ollamaErr) {
         console.error('All providers failed', ollamaErr)
         return NextResponse.json({ error: 'AI generation unavailable' }, { status: 503 })

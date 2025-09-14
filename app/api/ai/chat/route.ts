@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message, messages } = body
+  const { message, messages, temperature } = body
 
     // Support both single message and messages array
     const lastMessage = message || (messages && messages.length > 0 ? messages[messages.length - 1]?.content : null)
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const databaseContext = await getDatabaseContext()
     
-    const completion = await callOpenAI(lastMessage, databaseContext, openaiApiKey)
+  const completion = await callOpenAI(lastMessage, databaseContext, openaiApiKey, typeof temperature === 'number' ? temperature : undefined)
     
     return NextResponse.json({ answer: completion, response: completion })
   } catch (error) {
@@ -69,7 +69,7 @@ async function getDatabaseContext() {
   }
 }
 
-async function callOpenAI(message: string, context: any, apiKey: string) {
+async function callOpenAI(message: string, context: any, apiKey: string, temperatureOverride?: number) {
   const systemPrompt = `Jesteś asystentem AI dla rekrutera w polskiej firmie technologicznej. 
 Aktualne dane z bazy:
 - Ostatnie aplikacje: ${context.recentApplications}
@@ -90,7 +90,7 @@ Odpowiadaj po polsku, pomagaj w rekrutacji i analizie kandydatów.`
         { role: "system", content: systemPrompt },
         { role: "user", content: message }
       ],
-      temperature: 0.7,
+  temperature: typeof temperatureOverride === 'number' ? Math.max(0, Math.min(1, temperatureOverride)) : 0.7,
       max_tokens: 1000
     })
   })

@@ -13,20 +13,24 @@ export default async function RecruiterCandidatesPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect("/auth/signin")
 
+  // Typing fallback: prisma client here may have lost 'status' in generated select type, so use broad fetch and cast
   const applications = await prisma.candidateApplication.findMany({
     orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      position: true,
-      experience: true,
-      createdAt: true,
-      cvFileName: true,
-    },
-  })
+    take: 120,
+  }) as any[]
+
+  // Define which statuses count as already processed / archival
+  const processedStatuses = new Set([
+    'REJECTED',
+    'CONTACTED',
+    'REVIEWED',
+    'HIRED',
+    'INTERVIEW_COMPLETED',
+    'WITHDRAWN'
+  ])
+
+  const active = applications.filter(a => !processedStatuses.has((a as any).status))
+  const archived = applications.filter(a => processedStatuses.has((a as any).status))
 
   return (
     <div className="flex h-screen bg-background">
@@ -40,8 +44,17 @@ export default async function RecruiterCandidatesPage() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
-          <CandidatesTable items={applications as any} />
+        <main className="flex-1 overflow-auto p-6 space-y-10">
+          <section>
+            <h2 className="font-semibold text-lg mb-4">Nowe zgłoszenia</h2>
+            <p className="text-sm text-muted-foreground mb-2">Aplikacje oczekujące na decyzję / feedback</p>
+            <CandidatesTable items={active as any} />
+          </section>
+          <section>
+            <h2 className="font-semibold text-lg mb-4">Archiwum</h2>
+            <p className="text-sm text-muted-foreground mb-2">Aplikacje już rozpatrzone (feedback wysłany, odrzucone, zatrudnione itp.) — ukryte z głównego widoku</p>
+            <CandidatesTable items={archived as any} />
+          </section>
         </main>
       </div>
     </div>
