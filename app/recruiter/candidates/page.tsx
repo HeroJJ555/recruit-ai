@@ -29,6 +29,12 @@ export default async function RecruiterCandidatesPage() {
     },
   } as any))
 
+  const activeStatuses = ['PENDING', 'IN_REVIEW', 'INTERVIEW_SCHEDULED']
+  const archivedStatuses = ['HIRED', 'REJECTED', 'WITHDRAWN']
+  
+  const active = applications.filter(app => activeStatuses.includes(app.status))
+  const archived = applications.filter(app => archivedStatuses.includes(app.status))
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar className="w-64 flex-shrink-0" />
