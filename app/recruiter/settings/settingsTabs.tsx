@@ -5,19 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-<<<<<<< HEAD
 import { Textarea } from "@/components/ui/textarea"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { useTheme } from "next-themes"
-import { Sun, Moon, Monitor, Mail, Send } from "lucide-react"
-=======
 import { useEffect, useRef, useState, useCallback } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { Sun, Moon, Monitor, Save } from "lucide-react"
+import { Sun, Moon, Monitor, Save, Mail, Send } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
->>>>>>> 19b56ffc239e46900b3c506ed3011ad0206ea066
 
 interface UserLite { name?: string | null; email?: string | null; image?: string | null }
 
@@ -390,16 +383,6 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
   return (
     <div className="w-full max-w-6xl mx-auto">
       <Tabs defaultValue="profile" className="w-full">
-<<<<<<< HEAD
-        <div className="sticky top-0 z-10 -mx-6 px-6 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <TabsList className="w-full flex gap-1 overflow-x-auto md:overflow-visible justify-start rounded-none bg-transparent border-b border-border h-auto p-0">
-            <div className="flex w-full gap-1 py-2">
-              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="profile">Profil</TabsTrigger>
-              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="appearance">Wygląd</TabsTrigger>
-              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="ai">AI</TabsTrigger>
-              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="email">Email</TabsTrigger>
-              <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="notifications">Powiadomienia</TabsTrigger>
-=======
         <div className="sticky top-0 z-20 -mx-6 px-6 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
           <div className="flex items-center justify-between gap-4">
             <TabsList className="w-full flex gap-1 overflow-x-auto md:overflow-visible justify-start rounded-none bg-transparent h-auto p-0">
@@ -407,6 +390,7 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="profile">Profil</TabsTrigger>
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="appearance">Wygląd</TabsTrigger>
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="ai">AI</TabsTrigger>
+                <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="email">Email</TabsTrigger>
                 <TabsTrigger className="flex-none px-4 py-2 rounded-md data-[state=active]:bg-muted" value="notifications">Powiadomienia</TabsTrigger>
               </div>
             </TabsList>
@@ -414,7 +398,6 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
               <Button size="sm" onClick={() => saveAll()} disabled={!dirty || saving || profileInvalid} className="gap-2">
                 {saving ? 'Zapisywanie...' : (<><Save className="h-4 w-4" /> Zapisz zmiany</>)}
               </Button>
->>>>>>> 19b56ffc239e46900b3c506ed3011ad0206ea066
             </div>
           </div>
         </div>
