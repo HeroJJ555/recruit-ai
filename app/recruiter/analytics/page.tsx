@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
 import { Suspense } from "react"
+import { AnalyticsTrend } from "@/components/recruiter/analytics-trend"
+import { AnalyticsStatCard } from "@/components/recruiter/analytics-stat-card"
 import { Badge } from "@/components/ui/badge"
 
 type Metrics = {
@@ -326,26 +328,25 @@ async function MetricsSection() {
   const data = await getMetrics()
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Wszystkie oferty" value={data.jobsTotal} footer="Łączna liczba utworzonych ofert" />
-        <StatCard title="Otwarte oferty" value={data.jobsOpen} footer={`Współczynnik otwarcia: ${data.openRate}%`} />
-        <StatCard title="Aplikacje" value={data.applicationsTotal} footer={`Ostatnie 7 dni: ${data.applicationsLast7d}`} />
-        <StatCard title="Śr. aplikacji / otwartą" value={data.avgAppsPerOpenJob} footer="Aktywność kandydatów" />
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsStatCard title="Wszystkie oferty" value={data.jobsTotal} footer="Łączna liczba utworzonych ofert" />
+        <AnalyticsStatCard title="Otwarte oferty" value={data.jobsOpen} footer={`Współczynnik otwarcia: ${data.openRate}%`} />
+        <AnalyticsStatCard title="Aplikacje" value={data.applicationsTotal} footer={`Ostatnie 7 dni: ${data.applicationsLast7d}`} />
+        <AnalyticsStatCard title="Śr. aplikacji / otwartą" value={data.avgAppsPerOpenJob} footer="Aktywność kandydatów" />
       </div>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">Trend aplikacji (7 dni)
-              <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" aria-hidden />
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">Podgląd dziennej liczby nowych aplikacji z analizą zmian.</p>
-          </div>
-          <div className="text-xs text-muted-foreground whitespace-nowrap">Aktualizacja: teraz</div>
+        <CardHeader className="items-center text-center">
+          <CardTitle className="flex items-center justify-center gap-2">Trend aplikacji (7 dni)
+            <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" aria-hidden />
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Dzienne nowe aplikacje z płynną animacją wykresu.</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <TrendMiniChart days={data.trend.days} />
+              <div className="rounded-md border p-3">
+                <AnalyticsTrend days={data.trend.days} />
+              </div>
             </div>
             <div className="lg:col-span-1">
               <TrendSummaryCard days={data.trend.days} />
@@ -396,19 +397,7 @@ async function MetricsSection() {
   )
 }
 
-function StatCard({ title, value, footer }: { title: string; value: number | string; footer: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold leading-tight">{value}</div>
-        <div className="text-xs text-muted-foreground mt-1">{footer}</div>
-      </CardContent>
-    </Card>
-  )
-}
+// Stat cards moved to client-only component AnalyticsStatCard
 
 export default async function AnalyticsPage() {
   const session = await getServerSession(authOptions)
@@ -425,6 +414,7 @@ export default async function AnalyticsPage() {
           <div className="flex items-center gap-3" />
         </header>
         <Suspense fallback={<div className="text-sm text-muted-foreground">Ładowanie metryk...</div>}>
+          {/* @ts-expect-error Async Server Component */}
           <MetricsSection />
         </Suspense>
       </main>
