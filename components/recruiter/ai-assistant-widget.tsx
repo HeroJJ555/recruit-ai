@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,18 +20,35 @@ export function AIAssistantWidget() {
   const [messages, setMessages] = useState<Message[]>([{
     id: "init",
     role: "assistant",
-    content: "Cześć! Jestem Twoim lekkim asystentem AI (demo). Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
+    content: "Cześć! Jestem Twoim asystentem AI (demo). Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
     timestamp: new Date(),
   }])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const endRef = useRef<HTMLDivElement | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+ 
+  const handleScroll = useCallback(() => {
+    if (!scrollAreaRef.current) return
+    const el = scrollAreaRef.current
+    const bottomThreshold = 64
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    shouldStickToBottomRef.current = distanceFromBottom < bottomThreshold
+  }, [])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (!endRef.current) return
+    if (!shouldStickToBottomRef.current) return
+    endRef.current.scrollIntoView({ behavior, block: 'end' })
+  }, [])
 
   useEffect(() => {
-    // Auto scroll to bottom on new message
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    scrollToBottom(messages.length <= 2 ? 'auto' : 'smooth')
+  }, [messages, scrollToBottom])
 
   async function handleSendMessage() {
     if (!inputValue.trim() || isLoading) return
@@ -62,21 +79,24 @@ export function AIAssistantWidget() {
       setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: "Błąd: " + e.message, error: true, pending: false } : m))
     } finally {
       setIsLoading(false)
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 50)
     }
   }
 
   return (
     <Card className="h-[500px] flex flex-col">
-      <CardHeader>
+      <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center space-x-2">
           <Brain className="h-5 w-5 text-primary" />
           <span>Asystent AI</span>
         </CardTitle>
         <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym</CardDescription>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col space-y-4">
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-4">
+      <CardContent className="flex-1 flex flex-col min-h-0">
+        <ScrollArea className="flex-1 pr-4 min-h-0" ref={scrollAreaRef as any} onScroll={handleScroll}>
+          <div className="space-y-4" >
             {messages.map(message => {
               const isUser = message.role === "user"
               return (
@@ -99,21 +119,24 @@ export function AIAssistantWidget() {
                 </div>
               )
             })}
-            <div ref={scrollRef} />
+            <div ref={endRef} />
           </div>
         </ScrollArea>
-        {errorMsg && <p className="text-xs text-destructive -mt-2">{errorMsg}</p>}
-        <div className="flex space-x-2">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Zadaj pytanie asystentowi AI..."
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
-            disabled={isLoading}
-          />
-          <Button onClick={handleSendMessage} disabled={isLoading || !inputValue.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="flex-shrink-0 pt-4">
+          {errorMsg && <p className="text-xs text-destructive mb-2">{errorMsg}</p>}
+          <div className="flex space-x-2">
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Zadaj pytanie asystentowi"
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
+              disabled={isLoading}
+            />
+            <Button onClick={handleSendMessage} disabled={isLoading || !inputValue.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
