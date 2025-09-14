@@ -25,7 +25,6 @@ async function callGradioChat(messages: ChatMessage[], temperature = 0.4, maxTok
     
     console.log('User message:', lastUserMessage)
     
-    // System prompt in Polish for recruitment context
     const systemPrompt = "Jesteś profesjonalnym asystentem AI specjalizującym się w rekrutacji i HR. Odpowiadaj po polsku, zwięźle i konkretnie. Udzielaj praktycznych porad dotyczących procesu rekrutacji, oceny kandydatów, tworzenia opisów stanowisk i prowadzenia rozmów kwalifikacyjnych."
     
     const result = await client.predict("/chat", {
