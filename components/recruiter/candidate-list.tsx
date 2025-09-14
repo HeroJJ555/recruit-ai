@@ -7,36 +7,40 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { Star, Calendar, Eye, FileDown, MoreVertical, X, Clock, CheckCircle, Brain } from "lucide-react"
+import { Star, Calendar, Eye, FileDown, MoreVertical, X, Clock, CheckCircle, Brain, CalendarPlus } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import { pl } from "date-fns/locale"
 import { useEffect, useState } from "react"
+import { CreateMeetingDialog } from "@/components/recruiter/create-meeting-dialog"
 
 export function CandidateList() {
   const [candidates, setCandidates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set())
+  const [createMeetingDialogOpen, setCreateMeetingDialogOpen] = useState(false)
+  const [selectedCandidateForMeeting, setSelectedCandidateForMeeting] = useState<string | undefined>()
   const router = useRouter()
 
   useEffect(() => {
-    async function loadCandidates() {
-      try {
-        const res = await fetch("/api/candidate/applications")
-        if (res.ok) {
-          const data = await res.json()
-          console.log("Candidates data:", data) // Debug log
-          setCandidates(data.items || [])
-        }
-      } catch (error) {
-        console.error("Failed to load candidates:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadCandidates()
   }, [])
+
+  const loadCandidates = async () => {
+    try {
+      const res = await fetch("/api/candidate/applications")
+      if (res.ok) {
+        const data = await res.json()
+        console.log("Candidates data:", data) // Debug log
+        setCandidates(data.items || [])
+      }
+    } catch (error) {
+      console.error("Failed to load candidates:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getScoreColor = (score: number | null | undefined) => {
     if ((score ?? 0) >= 90) return "text-green-600"
@@ -84,11 +88,57 @@ export function CandidateList() {
       return
     }
 
-    // TODO: Implementacja aktualizacji statusów w bazie danych
-    console.log(`Bulk action: ${action} for candidates:`, selectedIds)
-    
-    // Reset selection
-    setSelectedCandidates(new Set())
+    if (action === 'interview') {
+      // Jeśli zaznaczono tylko jednego kandydata, otwórz dialog tworzenia spotkania
+      if (selectedIds.length === 1) {
+        setSelectedCandidateForMeeting(selectedIds[0])
+        setCreateMeetingDialogOpen(true)
+        return
+      }
+    }
+
+    try {
+      const response = await fetch('/api/candidate/bulk-actions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidateIds: selectedIds,
+          action: action === 'interview' ? 'INTERVIEW' : action === 'reject' ? 'REJECTED' : 'WAITING'
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log(`Bulk action success: ${result.message}`)
+        
+        // Update local state
+        setCandidates(prev => prev.map(candidate => 
+          selectedIds.includes(candidate.id) 
+            ? { ...candidate, status: action === 'interview' ? 'INTERVIEW' : action === 'reject' ? 'REJECTED' : 'WAITING' }
+            : candidate
+        ))
+        
+        // Reset selection
+        setSelectedCandidates(new Set())
+      } else {
+        const error = await response.json()
+        console.error('Bulk action failed:', error.error)
+      }
+    } catch (error) {
+      console.error('Bulk action error:', error)
+    }
+  }
+
+  const handleScheduleMeeting = (candidateId: string) => {
+    setSelectedCandidateForMeeting(candidateId)
+    setCreateMeetingDialogOpen(true)
+  }
+
+  const handleMeetingCreated = () => {
+    // Refresh candidates list to reflect any status changes
+    loadCandidates()
   }
 
   return (
@@ -243,6 +293,10 @@ export function CandidateList() {
                             <Eye className="h-4 w-4 mr-2" />
                             Zobacz profil
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleScheduleMeeting(candidate.id)}>
+                            <CalendarPlus className="h-4 w-4 mr-2" />
+                            Zaplanuj spotkanie
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleBulkAction('reject')}>
                             <X className="h-4 w-4 mr-2" />
@@ -266,6 +320,13 @@ export function CandidateList() {
           </div>
         )}
       </CardContent>
+
+      <CreateMeetingDialog
+        open={createMeetingDialogOpen}
+        onOpenChange={setCreateMeetingDialogOpen}
+        selectedCandidateId={selectedCandidateForMeeting}
+        onMeetingCreated={handleMeetingCreated}
+      />
     </Card>
   )
 }

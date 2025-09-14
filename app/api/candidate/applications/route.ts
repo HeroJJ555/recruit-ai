@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         experience: true,
         skills: true,
         cvFileName: true,
+        status: true,
         createdAt: true,
         cvAnalysis: {
           select: {

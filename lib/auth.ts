@@ -11,6 +11,11 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      authorization: {
+        params: {
+          scope: "openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events"
+        }
+      }
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -33,9 +38,12 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, account, profile, user }) {
-      if (account && profile) {
+      // Save the access_token and refresh_token when they are first received
+      if (account) {
+        token.accessToken = account.access_token
+        token.refreshToken = account.refresh_token
         token.provider = account.provider
-        token.picture = (profile as any).picture ?? token.picture
+        token.picture = (profile as any)?.picture ?? token.picture
       }
       if (user) {
         token.sub = user.id as string
@@ -45,6 +53,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         ;(session.user as any).id = token.sub
+        ;(session.user as any).accessToken = token.accessToken
+        ;(session.user as any).refreshToken = token.refreshToken
         session.user.image = (token as any).picture ?? session.user.image
       }
       return session

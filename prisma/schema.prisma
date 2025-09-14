@@ -1,6 +1,3 @@
-// Prisma schema for NextAuth with Credentials and Google
-// Using SQLite for local development
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,103 +5,77 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  // Use a direct (non-pooled) connection for migrations/introspection (bypasses PgBouncer on Supabase)
   directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  // Credentials auth
-  passwordHash  String?
-
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String?                @unique
+  emailVerified         DateTime?
+  image                 String?
+  passwordHash          String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   accounts              Account[]
-  sessions              Session[]
   candidateApplications CandidateApplication[]
   jobs                  Job[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  meetings              Meeting[]
+  MessageHistory        MessageHistory[]
+  sessions              Session[]
 }
 
 model CandidateApplication {
-  id     String  @id @default(cuid())
-  userId String? // Optional link to authenticated user
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  jobId  String?
-  job    Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
-
-  firstName String
-  lastName  String
-  email     String
-  phone     String?
-
-  position   String
-  experience String // junior | mid | senior | lead
-  skills     String // comma-separated or free text
-  education  String?
-
-  // CV file metadata (prefer object storage e.g., Supabase Storage); keep cvFileData optional for legacy
-  cvFileName String?
-  cvFileType String?
-  cvFileSize Int?
-  cvFileData Bytes?
-
-  // AI Analysis relationship
-  cvAnalysis CvAnalysis?
-
-  // NOTE: Object storage info temporarily removed until database migration can be applied
-  // storageProvider String?  @default("supabase")
-  // storageBucket   String?
-  // storageKey      String?
-  // fileHash        String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String            @id @default(cuid())
+  userId         String?
+  jobId          String?
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  position       String
+  experience     String
+  skills         String
+  education      String?
+  status         ApplicationStatus @default(PENDING)
+  cvFileName     String?
+  cvFileType     String?
+  cvFileSize     Int?
+  cvFileData     Bytes?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  job            Job?              @relation(fields: [jobId], references: [id])
+  user           User?             @relation(fields: [userId], references: [id])
+  cvAnalysis     CvAnalysis?
+  meetings       Meeting[]
+  MessageHistory MessageHistory[]
 
   @@index([email])
   @@index([createdAt])
   @@index([position])
-  // @@index([storageKey])  // Commented out until storage fields are migrated
+  @@index([status])
 }
 
 model CvAnalysis {
-  id                    String                @id @default(cuid())
+  id                     String               @id @default(cuid())
   candidateApplicationId String               @unique
-  candidateApplication  CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
-
-  // Raw extracted text from CV
-  analyzedText         String?
-
-  // AI Generated analysis fields
-  summary              String? // Polish natural language summary
-  technicalSkills      Json?   // Array of skills with match indicators  
-  experienceYears      Int?    // Extracted years of experience
-  matchScore           Float?  // Compatibility percentage (0-100)
-  interviewQuestions   Json?   // Array of personalized interview questions
-
-  // Metadata
-  aiProvider           String? @default("openai") // Track which AI generated this
-  aiModel              String? @default("gpt-4o-mini")
-  tokenUsage           Int?    // Token consumption for this analysis
-  processingTimeMs     Int?    // Time taken for analysis
-
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  analyzedText           String?
+  summary                String?
+  technicalSkills        Json?
+  experienceYears        Int?
+  matchScore             Float?
+  interviewQuestions     Json?
+  aiProvider             String?              @default("openai")
+  aiModel                String?              @default("gpt-4o-mini")
+  tokenUsage             Int?
+  processingTimeMs       Int?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  candidateApplication   CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
 
   @@index([candidateApplicationId])
   @@index([matchScore])
   @@index([createdAt])
-}
-
-enum JobStatus {
-  DRAFT
-  OPEN
-  PAUSED
-  CLOSED
 }
 
 model Job {
@@ -113,22 +84,21 @@ model Job {
   slug             String                 @unique
   department       String?
   location         String?
-  employmentType   String? // np. full-time, contract
-  seniority        String? // junior | mid | senior | lead
+  employmentType   String?
+  seniority        String?
   description      String
   requirements     String?
   responsibilities String?
   benefits         String?
-  // Ideal candidate profile for compatibility scoring
   goldenCandidate  Json?
   status           JobStatus              @default(DRAFT)
   openings         Int                    @default(1)
   publishedAt      DateTime?
   ownerId          String?
-  owner            User?                  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  applications     CandidateApplication[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+  applications     CandidateApplication[]
+  owner            User?                  @relation(fields: [ownerId], references: [id])
 
   @@index([status])
   @@index([publishedAt])
@@ -148,8 +118,7 @@ model Account {
   scope             String?
   id_token          String? @map("idToken")
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -159,8 +128,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -169,4 +137,90 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Meeting {
+  id              String               @id @default(cuid())
+  candidateId     String
+  recruiterId     String
+  title           String
+  description     String?
+  startTime       DateTime
+  endTime         DateTime
+  timeZone        String               @default("Europe/Warsaw")
+  meetingLink     String?
+  calendarEventId String?
+  status          MeetingStatus        @default(SCHEDULED)
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  candidate       CandidateApplication @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  recruiter       User                 @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([recruiterId])
+  @@index([startTime])
+  @@index([status])
+}
+
+model MessageHistory {
+  id                     String               @id
+  candidateApplicationId String
+  subject                String
+  content                String
+  template               String?
+  recipientEmail         String
+  recipientName          String
+  senderUserId           String?
+  mailProvider           String               @default("mailchimp")
+  externalMessageId      String?
+  status                 MessageStatus        @default(SENT)
+  sentAt                 DateTime             @default(now())
+  deliveredAt            DateTime?
+  errorMessage           String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime
+  CandidateApplication   CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
+  User                   User?                @relation(fields: [senderUserId], references: [id])
+
+  @@index([candidateApplicationId])
+  @@index([recipientEmail])
+  @@index([sentAt])
+  @@index([status])
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING
+  REJECTED
+  WAITING
+  INTERVIEW
+  HIRED
+  WITHDRAWN
+  REVIEWED
+  CONTACTED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
 }
