@@ -749,11 +749,8 @@ WYMAGANY FORMAT JSON:
   "standout_projects": [
     "Najciekawsze projekty z opisem osiągnięć"
   ],
-  "education": [
-    "Wykształcenie i certyfikaty"
-  ],
-  "languages": [
-    "Języki z poziomem"
+  "interview_questions": [
+    "Przygotowane pytania do kandydata na rozmowę"
   ],
   "potential_concerns": [
     "Ewentualne ryzyka lub braki (jeśli są)"
@@ -816,11 +813,8 @@ WYMAGANY FORMAT JSON:
   "standout_projects": [
     "Projekty najbardziej związane z oferowaną pozycją"
   ],
-  "education": [
-    "Wykształcenie i certyfikaty"
-  ],
-  "languages": [
-    "Języki z poziomem"
+  "interview_questions": [
+    "Przygotowane pytania do kandydata na podstawie CV i oferty"
   ],
   "potential_concerns": [
     "Braki w kontekście wymagań oferty lub inne ryzyka"
@@ -992,12 +986,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     let result: any
     
     // INSTANT ANALYSIS - try AI but fallback immediately to heuristic for speed
-    console.log('Attempting fast AI analysis with timeout...')
+    console.log('Attempting AI analysis with OpenAI timeout...')
     try {
-      // Set a 5-second timeout for AI response
+      // Set a 15-second timeout for OpenAI response (complex analysis needs more time)
       const aiPromise = chatJSON(prompt)
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('AI timeout')), 5000)
+        setTimeout(() => reject(new Error('AI timeout')), 15000)
       )
       
       result = await Promise.race([aiPromise, timeoutPromise])
@@ -1079,8 +1073,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             : 'Analiza ogólna profilu kandydata'
         },
         standout_projects: heuristicResult.notable_projects || [],
-        education: heuristicResult.education || [],
-        languages: heuristicResult.languages || [],
+        interview_questions: [
+          "Opowiedz o swoim największym osiągnięciu technicznym.",
+          "Jak podchodzisz do rozwiązywania problemów w kodzie?",
+          "Jakie technologie chciałbyś poznać w przyszłości?"
+        ],
         potential_concerns: heuristicResult.risks || [],
         ...(goldenData && {
           compatibility_breakdown: {

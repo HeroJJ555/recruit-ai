@@ -105,26 +105,65 @@ async function callOllama(messages: ChatMessage[], opts?: { model?: string; json
 async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY')
+  
   const model = opts?.model || process.env.OPENAI_MODEL || 'gpt-4o-mini'
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.2,
-      response_format: opts?.json ? { type: 'json_object' } : undefined,
+  console.log(`🤖 OpenAI Request: model=${model}, json=${opts?.json || false}`)
+  
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${apiKey}`, 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.2,
+        response_format: opts?.json ? { type: 'json_object' } : undefined,
+      })
     })
-  })
-  if (!res.ok) throw new Error(`OpenAI error ${res.status}`)
-  const data = await res.json()
-  const content: string = data?.choices?.[0]?.message?.content || ''
-  return content
+
+    // Extract debugging headers for troubleshooting
+    const requestId = res.headers.get('x-request-id')
+    const organization = res.headers.get('openai-organization')
+    const processingMs = res.headers.get('openai-processing-ms')
+    const rateLimitRemaining = res.headers.get('x-ratelimit-remaining-requests')
+    
+    console.log('🤖 OpenAI Response Headers:', {
+      requestId,
+      organization,
+      processingMs: processingMs ? `${processingMs}ms` : undefined,
+      rateLimitRemaining
+    })
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}))
+      const errorMessage = `OpenAI API error ${res.status}: ${errorData.error?.message || res.statusText}`
+      console.error('❌ OpenAI Error Details:', { requestId, status: res.status, error: errorData })
+      throw new Error(errorMessage)
+    }
+
+    const data = await res.json()
+    const content: string = data?.choices?.[0]?.message?.content || ''
+    
+    console.log('✅ OpenAI Success:', {
+      requestId,
+      contentLength: content.length,
+      tokensUsed: data?.usage?.total_tokens,
+      model: data?.model
+    })
+    
+    return content
+  } catch (error) {
+    console.error('❌ OpenAI Request Failed:', error)
+    throw error
+  }
 }
 
 export async function chatJSON(prompt: string) {
   console.log('=== chatJSON called ===')
-  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'puter' // Default to Puter (free Claude)
+  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'openai' // Default to OpenAI
   console.log('AI Provider:', provider)
   
   const messages: ChatMessage[] = [
@@ -134,20 +173,42 @@ export async function chatJSON(prompt: string) {
   
   let content = ''
   
-  // Try providers in order: Puter (free Claude) -> Perplexity (free) -> Ollama (free local) -> OpenAI (paid) -> Heuristic (fallback)
-  if (provider === 'puter' || !provider) {
+  // Try providers in order: OpenAI (primary) -> Puter (free Claude) -> Perplexity (free) -> Ollama (free local) -> Heuristic (fallback)
+  if (provider === 'openai' || !provider) {
     try {
-      console.log('🎯 Attempting Puter (Claude) connection...')
+      console.log('🤖 Attempting OpenAI connection...')
+      content = await callOpenAI(messages, { json: true })
+      console.log('✅ OpenAI response length:', content.length)
+    } catch (error) {
+      console.error('❌ OpenAI failed, trying Puter:', error)
+      try {
+        console.log('🎯 Attempting Puter (Claude) fallback...')
+        content = await callPuter(messages, { json: true })
+        console.log('✅ Puter response length:', content.length)
+      } catch (puterError) {
+        console.error('❌ Puter also failed, trying Perplexity:', puterError)
+        try {
+          console.log('🔮 Attempting Perplexity fallback...')
+          content = await callPerplexity(messages, { json: true })
+          console.log('✅ Perplexity response length:', content.length)
+        } catch (perplexityError) {
+          console.error('❌ All AI providers failed:', perplexityError)
+          throw error // Use original OpenAI error
+        }
+      }
+    }
+  } else if (provider === 'puter') {
+    try {
+      console.log('🎯 Using Puter (Claude) provider...')
       content = await callPuter(messages, { json: true })
       console.log('✅ Puter response length:', content.length)
     } catch (error) {
-      console.error('❌ Puter failed, trying Perplexity:', error)
+      console.error('❌ Puter failed, trying OpenAI:', error)
       try {
-        console.log('🔮 Attempting Perplexity fallback...')
-        content = await callPerplexity(messages, { json: true })
-        console.log('✅ Perplexity response length:', content.length)
-      } catch (perplexityError) {
-        console.error('❌ Perplexity also failed:', perplexityError)
+        content = await callOpenAI(messages, { json: true })
+        console.log('✅ OpenAI fallback response length:', content.length)
+      } catch (openaiError) {
+        console.error('❌ OpenAI fallback also failed:', openaiError)
         throw error // Use original Puter error
       }
     }
@@ -157,18 +218,19 @@ export async function chatJSON(prompt: string) {
       content = await callPerplexity(messages, { json: true })
       console.log('✅ Perplexity response length:', content.length)
     } catch (error) {
-      console.error('❌ Perplexity failed, trying Puter:', error)
-      content = await callPuter(messages, { json: true })
-      console.log('✅ Puter fallback response length:', content.length)
+      console.error('❌ Perplexity failed, trying OpenAI:', error)
+      try {
+        content = await callOpenAI(messages, { json: true })
+        console.log('✅ OpenAI fallback response length:', content.length)
+      } catch (openaiError) {
+        console.error('❌ OpenAI fallback also failed:', openaiError)
+        throw error // Use original Perplexity error
+      }
     }
   } else if (provider === 'ollama' && process.env.OLLAMA_HOST) {
-    console.log('🦙 Using Ollama provider...')
+    console.log('� Using Ollama provider...')
     content = await callOllama(messages, { json: true })
     console.log('✅ Ollama response length:', content.length)
-  } else if (provider === 'openai' && process.env.OPENAI_API_KEY) {
-    console.log('🤖 Using OpenAI provider...')
-    content = await callOpenAI(messages, { json: true })
-    console.log('✅ OpenAI response length:', content.length)
   } else {
     console.log('❌ No AI provider available, falling back to heuristic analysis')
     throw new Error('No AI provider available, falling back to heuristic analysis')
