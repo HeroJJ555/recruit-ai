@@ -38,31 +38,8 @@ export function CvAnalysis({ appId }: { appId: string }) {
   const [result, setResult] = useState<Result | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Przy załadowaniu: tylko spróbuj wczytać zapisany wynik z bazy (bez uruchamiania analizy)
-  useEffect(() => {
-    let ignore = false
-    const loadCached = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/candidate/applications/${appId}/analysis`)
-        if (!res.ok) {
-          // 404 = brak analizy — to OK
-          setResult(null)
-        } else {
-          const json = await res.json()
-          const sanitized = sanitizeAnalysisResult(json.result)
-          if (!ignore) setResult(sanitized)
-        }
-      } catch {
-        if (!ignore) setResult(null)
-      } finally {
-        if (!ignore) setLoading(false)
-      }
-    }
-    loadCached()
-    return () => { ignore = true }
-  }, [appId])
+  // Nie ładuj automatycznie — poprawa czasu ładowania profilu
+  // Użytkownik ręcznie wczyta zapisany wynik lub uruchomi analizę
 
   const run = async (refresh = false) => {
     setLoading(true)
@@ -71,18 +48,8 @@ export function CvAnalysis({ appId }: { appId: string }) {
       const res = await fetch(`/api/candidate/applications/${appId}/analyze${refresh ? '?refresh=1' : ''}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || 'Analysis failed')
-      
-      // Add debug logging to see the data structure
-      console.log('🔍 CV Analysis API Response:', json)
-      console.log('🔍 Technical Skills Structure:', json.result?.technical_skills)
-      console.log('🔍 Key Highlights Structure:', json.result?.key_highlights)
-      
-      // Validate and sanitize the result before setting state
+      // Sanitize and set
       const sanitizedResult = sanitizeAnalysisResult(json.result)
-      console.log('🔧 Sanitized Technical Skills:', sanitizedResult.technical_skills)
-      console.log('🔧 Sanitized Key Highlights:', sanitizedResult.key_highlights)
-      console.log('🔧 All skills are strings:', sanitizedResult.technical_skills?.every((s: any) => typeof s === 'string'))
-      console.log('🔧 All highlights are strings:', sanitizedResult.key_highlights?.every((s: any) => typeof s === 'string'))
       setResult(sanitizedResult)
     } catch (e: any) {
       setError(e?.message || 'Analysis failed')
@@ -160,28 +127,8 @@ export function CvAnalysis({ appId }: { appId: string }) {
 
     // Sanitization
     const sanitizedTechnicalSkills = sanitizeSkills(result.technical_skills || [])
-    // Zbuduj sensowne "Kluczowe atuty"
-    let sanitizedKeyHighlights = sanitizeHighlights(result.key_highlights || [])
-    if (sanitizedKeyHighlights.length === 0) {
-      const years = result.experience_summary?.years
-      const level = result.experience_summary?.level
-      const topSkills = (result.technical_skills || []).slice(0, 3)
-      const topProject = (result.standout_projects || [])[0]
-      sanitizedKeyHighlights = [
-        years ? `${years} lat doświadczenia${level ? ` — poziom ${String(level).toLowerCase()}` : ''}` : '',
-        topSkills.length ? `Mocne strony techniczne: ${topSkills.join(', ')}` : '',
-        topProject ? `Wyróżniający projekt: ${String(topProject)}` : ''
-      ].filter(Boolean)
-    } else {
-      // Zamień gołe "high/medium/low" na bardziej ludzkie opisy
-      sanitizedKeyHighlights = sanitizedKeyHighlights.map((h: string) => {
-        const s = h.trim().toLowerCase()
-        if (s === 'high' || s === 'wysoki') return 'Silne kompetencje w kluczowych obszarach'
-        if (s === 'medium' || s === 'średni') return 'Dobre dopasowanie z potencjałem do rozwoju'
-        if (s === 'low' || s === 'niski') return 'Częściowe dopasowanie — obszary do wzmocnienia'
-        return h
-      })
-    }
+    // Kluczowe atuty usuwamy z UI — utrzymujemy transformacje dla spójności, ale nie renderujemy
+    const sanitizedKeyHighlights = [] as string[]
     const sanitizedStandoutProjects = sanitizeHighlights(result.standout_projects || [])
     const sanitizedInterviewQuestions = sanitizeHighlights(result.interview_questions || [])
     const sanitizedPotentialConcerns = sanitizeHighlights(result.potential_concerns || [])
@@ -220,10 +167,35 @@ export function CvAnalysis({ appId }: { appId: string }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Analiza CV</h3>
-        <Button size="sm" variant="outline" onClick={() => run(!result)} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          {result ? 'Ponów analizę' : 'Uruchom analizę'}
-        </Button>
+        {!result ? (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={async () => {
+              setLoading(true); setError(null)
+              try {
+                const res = await fetch(`/api/candidate/applications/${appId}/analysis`)
+                if (!res.ok) throw new Error((await res.json()).error || 'Brak zapisanej analizy')
+                const json = await res.json()
+                setResult(sanitizeAnalysisResult(json.result))
+              } catch (e: any) {
+                setError(e?.message || 'Brak zapisanej analizy')
+              } finally {
+                setLoading(false)
+              }
+            }} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Wczytaj zapisaną analizę
+            </Button>
+            <Button size="sm" onClick={() => run(false)} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Uruchom analizę
+            </Button>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => run(true)} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Ponów analizę
+          </Button>
+        )}
       </div>
       
       {/* Stan ładowania dla pierwszego wywołania */}
@@ -285,19 +257,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                 </div>
               )}
                 
-                {result.key_highlights && result.key_highlights.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                      <Award className="h-4 w-4" />
-                      Kluczowe atuty
-                    </h4>
-                    <ul className="list-disc pl-5 text-sm space-y-1">
-                      {result.key_highlights.map((highlight, i) => (
-                        <li key={i}>{String(highlight || `Highlight ${i + 1}`)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {/* Kluczowe atuty — usunięte zgodnie z prośbą */}
               </CardContent>
             </Card>
           )}
@@ -351,7 +311,7 @@ export function CvAnalysis({ appId }: { appId: string }) {
                   )}
                   {result.experience_summary.level && (
                     <div className="text-sm">
-                      <span className="text-muted-foreground">Poziom:</span> {result.experience_summary.level}
+                      <span className="text-muted-foreground">Poziom:</span> {String(result.experience_summary.level).slice(0,1).toUpperCase() + String(result.experience_summary.level).slice(1)}
                     </div>
                   )}
                   {result.experience_summary.key_roles && result.experience_summary.key_roles.length > 0 && (

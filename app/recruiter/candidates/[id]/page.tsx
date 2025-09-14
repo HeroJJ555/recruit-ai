@@ -10,7 +10,7 @@ import { FileDown, Mail, Phone, Briefcase, Award, GraduationCap, FileText, Calen
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CvAnalysis } from "@/components/recruiter/cv-analysis"
-import { CandidateActions } from "@/components/recruiter/candidate-actions"
+import { CandidateActionModalTrigger } from "@/components/recruiter/candidate-action-modal-trigger"
 
 interface CandidateDetailPageProps { params: { id: string } }
 
@@ -43,6 +43,7 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
 
   const name = `${candidate.firstName} ${candidate.lastName}`
   const skills = candidate.skills ? String(candidate.skills).split(',').map(s => s.trim()).filter(Boolean) : []
+  const cap = (s?: string) => s ? s.slice(0,1).toUpperCase() + s.slice(1) : s
 
   const statusToBadge = (s?: string) => {
     const v = String(s || '').toUpperCase()
@@ -90,8 +91,8 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
                   </Button>
                 </Link>
               ) : null}
-              {/* Candidate-level actions */}
-              <CandidateActions candidateId={candidate.id} />
+              {/* Candidate-level actions as popup modal */}
+              <CandidateActionModalTrigger candidateId={candidate.id} candidateName={name} />
               <Link href="/recruiter">
                 <Button size="sm" variant="outline">Wróć</Button>
               </Link>
@@ -123,7 +124,7 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center gap-2"><Briefcase className="h-4 w-4 text-muted-foreground" /><span>{candidate.position || '-'}</span></div>
-                  <div className="flex items-center gap-2"><Award className="h-4 w-4 text-muted-foreground" /><Badge variant="secondary">{candidate.experience}</Badge></div>
+                  <div className="flex items-center gap-2"><Award className="h-4 w-4 text-muted-foreground" /><Badge variant="secondary">{cap(candidate.experience)}</Badge></div>
                 </CardContent>
               </Card>
 
