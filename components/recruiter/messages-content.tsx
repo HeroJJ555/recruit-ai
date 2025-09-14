@@ -1,0 +1,624 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Mail, Send, Users, CheckCircle, XCircle, Clock, FileText, MessageSquare, Loader2, AlertCircle, User, Bot } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+interface Candidate {
+  id: string;
+  name: string;
+  email: string;
+  position: string;
+  cvAnalysis: {
+    score: number;
+    strengths: string[];
+    weaknesses: string[];
+    recommendation: 'hire' | 'maybe' | 'reject';
+  };
+  appliedDate: string;
+  status: 'pending' | 'contacted' | 'interviewed' | 'hired' | 'rejected';
+  experience?: string;
+  skills?: string;
+  aiProvider?: string | null;
+  summary?: string | null;
+}
+
+// Email templates with placeholders
+const EMAIL_TEMPLATES = {
+  positive: {
+    subject: "Gratulacje! Zaproszenie na rozmowę - {{position}}",
+    content: `Szanowny/a {{candidateName}},
+
+Dziękujemy za aplikację na stanowisko {{position}}. Po analizie Twojego CV jesteśmy pod wrażeniem Twoich kwalifikacji!
+
+🎯 **Twoje mocne strony:**
+{{#strengths}}
+• {{.}}
+{{/strengths}}
+
+Osiągnąłeś/aś {{score}} punktów na 100 możliwych w naszej analizie, co kwalifikuje Cię do kolejnego etapu.
+
+**Następne kroki:**
+Chcielibyśmy zaprosić Cię na rozmowę kwalifikacyjną. Skontaktujemy się z Tobą w ciągu 2-3 dni roboczych.
+
+Gratulujemy i czekamy na spotkanie!
+
+Pozdrawiamy,
+Zespół Rekrutacji`
+  },
+  neutral: {
+    subject: "Dodatkowe informacje - {{position}}",
+    content: `Szanowny/a {{candidateName}},
+
+Dziękujemy za zainteresowanie stanowiskiem {{position}}.
+
+👍 **Pozytywne elementy Twojego profilu:**
+{{#strengths}}
+• {{.}}
+{{/strengths}}
+
+🔍 **Potrzebujemy wyjaśnienia:**
+{{#weaknesses}}
+• {{.}}
+{{/weaknesses}}
+
+Prosimy o przesłanie dodatkowych informacji lub dokumentów. Alternatywnie zapraszamy na krótką rozmowę telefoniczną.
+
+Pozdrawiamy,
+Zespół Rekrutacji`
+  },
+  negative: {
+    subject: "Feedback dotyczący aplikacji - {{position}}",
+    content: `Szanowny/a {{candidateName}},
+
+Dziękujemy za aplikację na stanowisko {{position}}.
+
+Po analizie musieliśmy podjąć decyzję o nieprzejściu do kolejnego etapu na to konkretne stanowisko.
+
+{{#strengths}}
+💡 **Pozytywne elementy:**
+{{#strengths}}
+• {{.}}
+{{/strengths}}
+
+{{/strengths}}
+**Obszary do rozwoju:**
+{{#weaknesses}}
+• {{.}}
+{{/weaknesses}}
+
+Zachęcamy do śledzenia naszych przyszłych ofert. Życzymy powodzenia!
+
+Pozdrawiamy,
+Zespół Rekrutacji`
+  }
+};
+
+const mockCandidates: Candidate[] = [];
+
+export default function MessagesContent() {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [emailTemplate, setEmailTemplate] = useState('');
+  const [customSubject, setCustomSubject] = useState('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  // Fetch candidates from database
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
+
+  const fetchCandidates = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/recruiter/candidates-for-feedback');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch candidates');
+      }
+      
+      const data = await response.json();
+      setCandidates(data.candidates || []);
+      
+      console.log(`✅ Loaded ${data.candidates?.length || 0} candidates from database`);
+    } catch (error) {
+      console.error('Error fetching candidates:', error);
+      toast({
+        title: "Błąd",
+        description: "Nie udało się pobrać listy kandydatów",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Template processing function
+  const processTemplate = (template: string, candidate: Candidate): string => {
+    let processed = template;
+    
+    // Replace placeholders
+    processed = processed.replace(/\{\{candidateName\}\}/g, candidate.name);
+    processed = processed.replace(/\{\{position\}\}/g, candidate.position);
+    processed = processed.replace(/\{\{score\}\}/g, candidate.cvAnalysis.score.toString());
+    
+    // Handle strengths list
+    const strengthsList = candidate.cvAnalysis.strengths
+      .map(strength => `• ${strength}`)
+      .join('\n');
+    processed = processed.replace(/\{\{#strengths\}\}[\s\S]*?\{\{\/strengths\}\}/g, strengthsList);
+    
+    // Handle weaknesses list
+    const weaknessesList = candidate.cvAnalysis.weaknesses
+      .map(weakness => `• ${weakness}`)
+      .join('\n');
+    processed = processed.replace(/\{\{#weaknesses\}\}[\s\S]*?\{\{\/weaknesses\}\}/g, weaknessesList);
+    
+    return processed;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return <Clock className="h-4 w-4 text-yellow-500" />;
+      case 'contacted': return <Mail className="h-4 w-4 text-blue-500" />;
+      case 'interviewed': return <Users className="h-4 w-4 text-purple-500" />;
+      case 'hired': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'rejected': return <XCircle className="h-4 w-4 text-red-500" />;
+      default: return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getRecommendationBadge = (recommendation: string) => {
+    switch (recommendation) {
+      case 'hire':
+        return <Badge className="bg-green-100 text-green-800">Polecam</Badge>;
+      case 'maybe':
+        return <Badge className="bg-yellow-100 text-yellow-800">Do rozważenia</Badge>;
+      case 'reject':
+        return <Badge className="bg-red-100 text-red-800">Odrzuć</Badge>;
+      default:
+        return <Badge variant="secondary">Nieznane</Badge>;
+    }
+  };
+
+  const generateAIFeedback = async (candidate: Candidate) => {
+    const { cvAnalysis } = candidate;
+    
+    try {
+      const response = await fetch('/api/ai/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidate: {
+            name: candidate.name,
+            position: candidate.position,
+            score: cvAnalysis.score,
+            strengths: cvAnalysis.strengths,
+            weaknesses: cvAnalysis.weaknesses,
+            recommendation: cvAnalysis.recommendation
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Błąd generowania feedbacku');
+      }
+
+      const data = await response.json();
+      return data.feedback;
+    } catch (error) {
+      console.error('Błąd AI feedback:', error);
+      return generateFallbackFeedback(candidate);
+    }
+  };
+
+  const generateFallbackFeedback = (candidate: Candidate) => {
+    const { cvAnalysis } = candidate;
+    
+    if (cvAnalysis.recommendation === 'hire') {
+      return `Dziękujemy za aplikację na stanowisko ${candidate.position}. 
+
+Po analizie Twojego CV jesteśmy pod wrażeniem Twoich kwalifikacji, szczególnie:
+${cvAnalysis.strengths.map(s => `• ${s}`).join('\n')}
+
+Chcielibyśmy zaprosić Cię na rozmowę kwalifikacyjną. Skontaktujemy się z Tobą w ciągu najbliższych dni w celu ustalenia terminu.
+
+Pozdrawiamy,
+Zespół Rekrutacji`;
+    } else if (cvAnalysis.recommendation === 'maybe') {
+      return `Dziękujemy za zainteresowanie stanowiskiem ${candidate.position}.
+
+Twoje CV zawiera obiecujące elementy:
+${cvAnalysis.strengths.map(s => `• ${s}`).join('\n')}
+
+Jednocześnie chcielibyśmy zwrócić uwagę na obszary do rozwoju:
+${cvAnalysis.weaknesses.map(w => `• ${w}`).join('\n')}
+
+Rozważymy Twoją kandydaturę i skontaktujemy się z Tobą, jeśli zdecydujemy o dalszych krokach.
+
+Pozdrawiamy,
+Zespół Rekrutacji`;
+    } else {
+      return `Dziękujemy za aplikację na stanowisko ${candidate.position}.
+
+Po dokładnej analizie Twojego CV musieliśmy podjąć trudną decyzję o nieprzejściu do kolejnego etapu rekrutacji. Twój profil nie odpowiada w pełni aktualnym wymaganiom stanowiska.
+
+Zachęcamy do śledzenia naszych przyszłych ofert pracy, które mogą lepiej odpowiadać Twoim kwalifikacjom.
+
+Dziękujemy za zainteresowanie naszą firmą.
+
+Pozdrawiamy,
+Zespół Rekrutacji`;
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedCandidate) return;
+
+    setIsLoading(true);
+    try {
+      let finalMessage = customMessage;
+      let finalSubject = customSubject;
+      
+      // Use template if selected
+      if (emailTemplate && emailTemplate !== 'custom' && emailTemplate !== 'ai-feedback') {
+        const template = EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES];
+        if (template) {
+          finalSubject = processTemplate(template.subject, selectedCandidate);
+          finalMessage = processTemplate(template.content, selectedCandidate);
+        }
+      }
+      
+      // Use AI feedback if selected
+      if (emailTemplate === 'ai-feedback') {
+        finalMessage = await generateAIFeedback(selectedCandidate);
+      }
+
+      const response = await fetch('/api/mail/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: selectedCandidate.email,
+          candidateName: selectedCandidate.name,
+          position: selectedCandidate.position,
+          subject: finalSubject || `Feedback dot. aplikacji - ${selectedCandidate.position}`,
+          message: finalMessage,
+          template: emailTemplate,
+          candidateId: selectedCandidate.id
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Błąd wysyłania maila');
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Mail wysłany!",
+        description: `Feedback został wysłany do ${selectedCandidate.name}`,
+      });
+
+      // Update candidate status and refresh list
+      await fetch(`/api/recruiter/candidates/${selectedCandidate.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'contacted' }),
+      });
+
+      // Refresh candidates list
+      fetchCandidates();
+
+      // Reset form
+      setSelectedCandidate(null);
+      setCustomMessage('');
+      setCustomSubject('');
+      setEmailTemplate('');
+
+    } catch (error) {
+      console.error('Send email error:', error);
+      toast({
+        title: "Błąd",
+        description: "Nie udało się wysłać maila. Spróbuj ponownie.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Wiadomości</h1>
+          <p className="text-muted-foreground">
+            Zarządzaj komunikacją z kandydatami i wysyłaj spersonalizowany feedback
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5" />
+          <span className="text-sm text-muted-foreground">
+            {candidates.filter(c => c.status === 'pending').length} oczekujących
+          </span>
+        </div>
+      </div>
+
+      <Tabs defaultValue="candidates" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="candidates">Kandydaci</TabsTrigger>
+          <TabsTrigger value="templates">Szablony</TabsTrigger>
+          <TabsTrigger value="history">Historia</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="candidates" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Lista kandydatów */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Kandydaci oczekujący feedback</CardTitle>
+                <CardDescription>
+                  Wybierz kandydata, aby wysłać spersonalizowaną wiadomość
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <span className="ml-2">Ładowanie kandydatów...</span>
+                  </div>
+                ) : candidates.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4" />
+                    <p>Brak kandydatów oczekujących na feedback.</p>
+                    <p className="text-sm mt-2">Kandydaci pojawią się tutaj po złożeniu aplikacji.</p>
+                  </div>
+                ) : (
+                  candidates.map((candidate) => (
+                    <div
+                      key={candidate.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedCandidate?.id === candidate.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => setSelectedCandidate(candidate)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold">{candidate.name}</h3>
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(candidate.status)}
+                          {getRecommendationBadge(candidate.cvAnalysis.recommendation)}
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {candidate.position}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {candidate.email} • Aplikacja: {candidate.appliedDate}
+                      </p>
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <FileText className="h-3 w-3" />
+                          <span>Ocena CV: {candidate.cvAnalysis.score}/100</span>
+                          {candidate.aiProvider && (
+                            <Badge variant="outline" className="text-xs">
+                              {candidate.aiProvider}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Formularz wysyłania maila */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Wyślij feedback</CardTitle>
+                <CardDescription>
+                  Spersonalizowana wiadomość dla kandydata
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!selectedCandidate ? (
+                  <Alert>
+                    <Mail className="h-4 w-4" />
+                    <AlertTitle>Wybierz kandydata</AlertTitle>
+                    <AlertDescription>
+                      Najpierw wybierz kandydata z listy po lewej stronie.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Kandydat</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="font-medium">{selectedCandidate.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedCandidate.email}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {selectedCandidate.position}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="template">Szablon wiadomości</Label>
+                      <Select value={emailTemplate} onValueChange={setEmailTemplate}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Wybierz szablon lub napisz własny" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ai-feedback">🤖 AI - Automatyczny feedback</SelectItem>
+                          <SelectItem value="positive">✅ Pozytywny - Zaproszenie na rozmowę</SelectItem>
+                          <SelectItem value="neutral">ℹ️ Neutralny - Prośba o więcej info</SelectItem>
+                          <SelectItem value="negative">❌ Negatywny - Odrzucenie</SelectItem>
+                          <SelectItem value="custom">✏️ Napisz własny</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="subject">Temat wiadomości</Label>
+                      <Input
+                        id="subject"
+                        value={customSubject}
+                        onChange={(e) => setCustomSubject(e.target.value)}
+                        placeholder={`Feedback dot. aplikacji - ${selectedCandidate.position}`}
+                      />
+                    </div>
+
+                    {(emailTemplate === 'positive' || emailTemplate === 'neutral' || emailTemplate === 'negative') && selectedCandidate && (
+                      <div className="space-y-2">
+                        <Label>Podgląd szablonu</Label>
+                        <div className="p-3 bg-gray-50 rounded-lg border text-sm">
+                          <p className="font-medium mb-2">
+                            Temat: {processTemplate(EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES].subject, selectedCandidate)}
+                          </p>
+                          <div className="whitespace-pre-line text-xs text-muted-foreground max-h-32 overflow-y-auto">
+                            {processTemplate(EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES].content, selectedCandidate)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {emailTemplate === 'custom' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="message">Treść wiadomości</Label>
+                        <Textarea
+                          id="message"
+                          rows={8}
+                          value={customMessage}
+                          onChange={(e) => setCustomMessage(e.target.value)}
+                          placeholder="Napisz spersonalizowaną wiadomość..."
+                        />
+                      </div>
+                    )}
+
+                    {emailTemplate === 'ai-feedback' && (
+                      <Alert>
+                        <FileText className="h-4 w-4" />
+                        <AlertTitle>AI Feedback</AlertTitle>
+                        <AlertDescription>
+                          Wiadomość zostanie automatycznie wygenerowana na podstawie analizy CV kandydata. 
+                          Ocena: {selectedCandidate.cvAnalysis.score}/100 - {selectedCandidate.cvAnalysis.recommendation === 'hire' ? 'Polecam' : selectedCandidate.cvAnalysis.recommendation === 'maybe' ? 'Do rozważenia' : 'Odrzuć'}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button 
+                      onClick={handleSendEmail} 
+                      disabled={isLoading || (!customMessage && emailTemplate === 'custom') || !emailTemplate}
+                      className="w-full"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {isLoading ? 'Wysyłanie...' : 'Wyślij feedback'}
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <Card>
+            <CardHeader>
+              <CardTitle>Szablony wiadomości</CardTitle>
+              <CardDescription>
+                Predefiniowane szablony z automatycznym wypełnianiem danych kandydata
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(EMAIL_TEMPLATES).map(([key, template]) => (
+                  <div key={key} className="p-4 border rounded-lg">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      {key === 'positive' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                      {key === 'neutral' && <AlertCircle className="h-4 w-4 text-yellow-500" />}
+                      {key === 'negative' && <XCircle className="h-4 w-4 text-red-500" />}
+                      {key === 'positive' && 'Pozytywny feedback'}
+                      {key === 'neutral' && 'Neutralny feedback'}
+                      {key === 'negative' && 'Negatywny feedback'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {key === 'positive' && 'Dla kandydatów z wysoką oceną - zaproszenie na rozmowę'}
+                      {key === 'neutral' && 'Dla kandydatów wymagających dodatkowych informacji'}
+                      {key === 'negative' && 'Grzeczne odrzucenie z konstruktywnym feedbackiem'}
+                    </p>
+                    <div className="text-xs bg-gray-50 p-3 rounded">
+                      <p className="font-medium mb-1">Temat:</p>
+                      <p className="mb-2 text-muted-foreground">{template.subject}</p>
+                      <p className="font-medium mb-1">Treść (fragment):</p>
+                      <div className="text-muted-foreground whitespace-pre-line max-h-24 overflow-hidden">
+                        {template.content.substring(0, 200)}...
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-blue-600">
+                      <strong>Placeholders:</strong> {`{{candidateName}}, {{position}}, {{score}}, {{strengths}}, {{weaknesses}}`}
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="p-4 border rounded-lg border-dashed">
+                  <h3 className="font-semibold text-blue-700 mb-2 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    AI Feedback
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Automatycznie generowany na podstawie analizy CV kandydata
+                  </p>
+                  <div className="text-xs bg-blue-50 p-3 rounded">
+                    <p>• Inteligentna analiza mocnych i słabych stron</p>
+                    <p>• Dopasowany ton w zależności od oceny</p>
+                    <p>• Spersonalizowane rekomendacje</p>
+                    <p>• Wykorzystuje AI do generowania treści</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card>
+            <CardHeader>
+              <CardTitle>Historia wiadomości</CardTitle>
+              <CardDescription>
+                Zobacz wszystkie wysłane wiadomości
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                <Mail className="h-12 w-12 mx-auto mb-4" />
+                <p>Historia wiadomości zostanie dodana po pierwszym wysłanym mailu.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
