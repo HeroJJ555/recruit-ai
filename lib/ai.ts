@@ -32,6 +32,10 @@ async function puterClaudeChat(prompt: string): Promise<string> {
     }
     
     return text
+  } catch (error) {
+    throw error
+  }
+}
 
 async function perplexityChat(prompt: string): Promise<string> {
   const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -150,13 +154,13 @@ export const chatJSON = async (prompt: string, provider: 'openai' | 'puter' | 'p
       console.error('❌ OpenAI failed, trying Puter:', error)
       try {
         console.log('🎯 Attempting Puter (Claude) fallback...')
-        content = await callPuter(messages, { json: true })
+        content = await puterClaudeChat(cleanedPrompt)
         console.log('✅ Puter response length:', content.length)
       } catch (puterError) {
         console.error('❌ Puter also failed, trying Perplexity:', puterError)
         try {
           console.log('🔮 Attempting Perplexity fallback...')
-          content = await callPerplexity(messages, { json: true })
+          content = await perplexityChat(cleanedPrompt)
           console.log('✅ Perplexity response length:', content.length)
         } catch (perplexityError) {
           console.error('❌ All AI providers failed:', perplexityError)
@@ -167,7 +171,7 @@ export const chatJSON = async (prompt: string, provider: 'openai' | 'puter' | 'p
   } else if (provider === 'puter') {
     try {
       console.log('🎯 Using Puter (Claude) provider...')
-      content = await callPuter(messages, { json: true })
+      content = await puterClaudeChat(cleanedPrompt)
       console.log('✅ Puter response length:', content.length)
     } catch (error) {
       console.error('❌ Puter failed, trying OpenAI:', error)
@@ -182,7 +186,7 @@ export const chatJSON = async (prompt: string, provider: 'openai' | 'puter' | 'p
   } else if (provider === 'perplexity') {
     try {
       console.log('🔮 Using Perplexity provider...')
-      content = await callPerplexity(messages, { json: true })
+      content = await perplexityChat(cleanedPrompt)
       console.log('✅ Perplexity response length:', content.length)
     } catch (error) {
       console.error('❌ Perplexity failed, trying OpenAI:', error)

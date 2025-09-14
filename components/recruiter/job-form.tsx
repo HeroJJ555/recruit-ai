@@ -53,20 +53,19 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
         publish,
       }
 
-      try {
-        const response = await fetch('/api/recruiter/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        
-        if (!response.ok) {
-          const j = await response.json().catch(() => ({}))
-          throw new Error(j.error || `Nie udało się ${editMode ? 'zaktualizować' : 'utworzyć'} oferty`)
-        }
-
-        const result = await response.json()
+      const response = await fetch('/api/recruiter/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
       
+      if (!response.ok) {
+        const j = await response.json().catch(() => ({}))
+        throw new Error(j.error || `Nie udało się ${editMode ? 'zaktualizować' : 'utworzyć'} oferty`)
+      }
+
+      const result = await response.json()
+    
       if (editMode) {
         onSuccess?.()
       } else {
@@ -77,7 +76,7 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
     } catch (e: any) {
       setError(e.message)
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
