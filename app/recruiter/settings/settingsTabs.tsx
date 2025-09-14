@@ -7,8 +7,66 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
+import { Sun, Moon, Monitor } from "lucide-react"
 
 interface UserLite { name?: string | null; email?: string | null; image?: string | null }
+
+function ThemeSettings() {
+  const { theme, setTheme } = useTheme()
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Motyw kolorystyczny</CardTitle>
+        <CardDescription>Dostosuj wygląd aplikacji do swoich preferencji.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <Button
+            variant={theme === "light" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTheme("light")}
+            className="flex items-center gap-2 h-12"
+          >
+            <Sun className="h-4 w-4" />
+            <div className="text-left">
+              <div className="text-sm">Jasny</div>
+              <div className="text-xs text-muted-foreground">Zawsze jasny</div>
+            </div>
+          </Button>
+          <Button
+            variant={theme === "dark" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTheme("dark")}
+            className="flex items-center gap-2 h-12"
+          >
+            <Moon className="h-4 w-4" />
+            <div className="text-left">
+              <div className="text-sm">Ciemny</div>
+              <div className="text-xs text-muted-foreground">Zawsze ciemny</div>
+            </div>
+          </Button>
+          <Button
+            variant={theme === "system" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setTheme("system")}
+            className="flex items-center gap-2 h-12"
+          >
+            <Monitor className="h-4 w-4" />
+            <div className="text-left">
+              <div className="text-sm">System</div>
+              <div className="text-xs text-muted-foreground">Auto</div>
+            </div>
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Wybierz motyw lub zostaw automatyczny dobór na podstawie ustawień systemu.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
 
 function AISettings() {
   const [temperature, setTemperature] = useState(0.7)
@@ -131,8 +189,9 @@ function ProfileForm({ user }: { user: UserLite }) {
 export default function ClientSettingsTabs({ user }: { user: UserLite }) {
   return (
     <Tabs defaultValue="profile" className="w-full">
-      <TabsList className="mb-4 grid grid-cols-4 w-full max-w-xl">
+      <TabsList className="mb-4 grid grid-cols-5 w-full max-w-2xl">
         <TabsTrigger value="profile">Profil</TabsTrigger>
+        <TabsTrigger value="appearance">Wygląd</TabsTrigger>
         <TabsTrigger value="ai">AI</TabsTrigger>
         <TabsTrigger value="notifications">Powiadomienia</TabsTrigger>
         <TabsTrigger value="security">Bezpieczeństwo</TabsTrigger>
@@ -144,6 +203,9 @@ export default function ClientSettingsTabs({ user }: { user: UserLite }) {
         <div className="space-y-6">
           <AISettings />
         </div>
+      </TabsContent>
+      <TabsContent value="appearance" className="space-y-6">
+        <ThemeSettings />
       </TabsContent>
       <TabsContent value="ai" className="space-y-6">
         <AISettings />

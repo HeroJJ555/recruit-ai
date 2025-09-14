@@ -7,80 +7,49 @@ function safeJSONParse<T = any>(s: string): T | null {
   try { return JSON.parse(s) } catch { return null }
 }
 
-async function callPuter(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+async function puterClaudeChat(prompt: string): Promise<string> {
   try {
-    console.log('🎯 Using Puter.js for free Claude AI access...')
-    
-    // Combine system and user messages
-    const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
-    const userMessage = messages.find(m => m.role === 'user')?.content || ""
-    
-    const prompt = opts?.json 
-      ? `${systemMessage}\n\nUser: ${userMessage}\n\nPlease respond with valid JSON only, no markdown or additional text.`
-      : `${systemMessage}\n\nUser: ${userMessage}`
-
-    console.log('📤 Sending request to Puter with prompt length:', prompt.length)
-    
-    // Use fetch to call Puter API directly since we can't use their browser SDK in Node.js
     const response = await fetch('https://api.puter.com/ai/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.AI_API_TOKEN || ''}`
       },
       body: JSON.stringify({
-        message: prompt,
-        model: opts?.model || 'claude-sonnet-4',
-        stream: false
-      })
+        messages: [{ role: 'user', content: prompt }],
+        model: 'claude-3-haiku-20240307',
+      }),
     })
 
     if (!response.ok) {
-      throw new Error(`Puter API error: ${response.status} ${response.statusText}`)
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
-    const text = data.response || data.content || data.message || ''
-
-    console.log('✅ Puter response received, length:', text.length)
-    return text
-  } catch (error) {
-    console.error('❌ Puter error details:', error)
-    throw new Error(`Puter error: ${error}`)
-  }
-}
-
-async function callPerplexity(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
-  try {
-    // Check if API key is available
-    if (!process.env.PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY === 'your-perplexity-api-key-here') {
-      throw new Error('PERPLEXITY_API_KEY not configured')
+    const text = data.message?.content || ''
+    
+    if (!text) {
+      throw new Error('Empty response from Puter API')
     }
-
-    console.log('🔮 Connecting to Perplexity AI...')
     
-    // Combine system and user messages
-    const systemMessage = messages.find(m => m.role === 'system')?.content || "You are a helpful assistant."
-    const userMessage = messages.find(m => m.role === 'user')?.content || ""
-    
-    const prompt = opts?.json 
-      ? `${systemMessage}\n\nUser: ${userMessage}\n\nPlease respond with valid JSON only, no markdown or additional text.`
-      : `${systemMessage}\n\nUser: ${userMessage}`
-
-    console.log('📤 Sending request to Perplexity with prompt length:', prompt.length)
-    
-    const { text } = await generateText({
-      model: perplexity(opts?.model || 'sonar'),
-      prompt: prompt,
-      maxRetries: 2,
-    })
-
-    console.log('✅ Perplexity response received, length:', text.length)
     return text
-  } catch (error) {
-    console.error('❌ Perplexity error details:', error)
-    throw new Error(`Perplexity error: ${error}`)
-  }
+
+async function perplexityChat(prompt: string): Promise<string> {
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-sonar-small-128k-online',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+  
+  const data = await response.json()
+  const text = data.choices?.[0]?.message?.content || ''
+  
+  return text
 }
 
 async function callOllama(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
@@ -161,10 +130,8 @@ async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json
   }
 }
 
-export async function chatJSON(prompt: string) {
-  console.log('=== chatJSON called ===')
-  const provider = (process.env.AI_PROVIDER || '').toLowerCase() || 'openai' // Default to OpenAI
-  console.log('AI Provider:', provider)
+export const chatJSON = async (prompt: string, provider: 'openai' | 'puter' | 'perplexity' = 'openai', opts?: { json?: boolean }) => {
+  const cleanedPrompt = prompt.replace(/\s+/g, ' ').trim()
   
   const messages: ChatMessage[] = [
     { role: 'system', content: 'You are a helpful assistant that analyzes CVs and resumes. Always reply with strict JSON only.' },
@@ -310,34 +277,6 @@ export function heuristicAnalysis(text: string) {
     .filter(({ pattern }) => pattern.test(text))
     .map(({ role }) => role)
   
-  // Education detection
-  const educationPatterns = [
-    /(?:university|uniwersytet|uczelnia|college)\s+(?:of\s+)?([^,.\n]+)/gi,
-    /(?:bachelor|master|phd|mgr|inż|dr)\s+(?:of\s+|in\s+)?([^,.\n]+)/gi,
-    /(?:computer science|informatyka|engineering|inżynieria)/gi
-  ]
-  
-  const education = []
-  for (const pattern of educationPatterns) {
-    const matches = text.match(pattern) || []
-    education.push(...matches.map(match => match.trim()))
-  }
-  
-  // Languages detection
-  const languagePatterns = [
-    /(?:english|angielski|język angielski)[:\s]*([^\n,]*)/gi,
-    /(?:polish|polski|język polski)[:\s]*([^\n,]*)/gi,
-    /(?:german|niemiecki|język niemiecki)[:\s]*([^\n,]*)/gi,
-    /(?:french|francuski|język francuski)[:\s]*([^\n,]*)/gi,
-    /(?:spanish|hiszpański|język hiszpański)[:\s]*([^\n,]*)/gi
-  ]
-  
-  const languages = []
-  for (const pattern of languagePatterns) {
-    const matches = text.match(pattern) || []
-    languages.push(...matches.map(match => match.trim()))
-  }
-  
   // Projects detection
   const projectLines = text.split('\n')
     .filter(line => 
@@ -366,8 +305,6 @@ export function heuristicAnalysis(text: string) {
     total_experience_years: experienceYears || 0,
     seniority,
     top_roles: roles.length > 0 ? roles : [primaryRole],
-    education: Array.from(new Set(education)).slice(0, 3),
-    languages: Array.from(new Set(languages)).slice(0, 5),
     notable_projects: projectLines,
     risks: maybeSkills.length < 3 ? ['Ograniczona liczba zidentyfikowanych umiejętności technicznych'] : [],
   }

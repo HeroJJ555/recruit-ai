@@ -26,6 +26,13 @@ export async function GET(request: NextRequest) {
         skills: true,
         cvFileName: true,
         createdAt: true,
+        cvAnalysis: {
+          select: {
+            matchScore: true,
+            aiProvider: true,
+            createdAt: true
+          }
+        }
       },
       orderBy: { createdAt: "desc" },
       take: 50, // Limit results for better performance
@@ -168,6 +175,7 @@ export async function POST(req: NextRequest) {
             lastName: true,
             email: true,
             position: true,
+            cvFileName: true,
             createdAt: true,
           }
         })
@@ -184,6 +192,7 @@ export async function POST(req: NextRequest) {
                 lastName: true,
                 email: true,
                 position: true,
+                cvFileName: true,
                 createdAt: true,
               }
             })
@@ -309,6 +318,7 @@ export async function POST(req: NextRequest) {
             lastName: true,
             email: true,
             position: true,
+            cvFileName: true,
             createdAt: true,
           }
         })
@@ -324,6 +334,7 @@ export async function POST(req: NextRequest) {
                 lastName: true,
                 email: true,
                 position: true,
+                cvFileName: true,
                 createdAt: true,
               }
             })

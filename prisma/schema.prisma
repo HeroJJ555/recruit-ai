@@ -53,7 +53,8 @@ model CandidateApplication {
   cvFileSize Int?
   cvFileData Bytes?
 
-
+  // AI Analysis relationship
+  cvAnalysis CvAnalysis?
 
   // NOTE: Object storage info temporarily removed until database migration can be applied
   // storageProvider String?  @default("supabase")
@@ -68,6 +69,35 @@ model CandidateApplication {
   @@index([createdAt])
   @@index([position])
   // @@index([storageKey])  // Commented out until storage fields are migrated
+}
+
+model CvAnalysis {
+  id                    String                @id @default(cuid())
+  candidateApplicationId String               @unique
+  candidateApplication  CandidateApplication @relation(fields: [candidateApplicationId], references: [id], onDelete: Cascade)
+
+  // Raw extracted text from CV
+  analyzedText         String?
+
+  // AI Generated analysis fields
+  summary              String? // Polish natural language summary
+  technicalSkills      Json?   // Array of skills with match indicators  
+  experienceYears      Int?    // Extracted years of experience
+  matchScore           Float?  // Compatibility percentage (0-100)
+  interviewQuestions   Json?   // Array of personalized interview questions
+
+  // Metadata
+  aiProvider           String? @default("openai") // Track which AI generated this
+  aiModel              String? @default("gpt-4o-mini")
+  tokenUsage           Int?    // Token consumption for this analysis
+  processingTimeMs     Int?    // Time taken for analysis
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([candidateApplicationId])
+  @@index([matchScore])
+  @@index([createdAt])
 }
 
 enum JobStatus {

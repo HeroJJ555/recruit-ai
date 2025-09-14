@@ -3,7 +3,7 @@
 import { useState, memo, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Brain, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react"
+import { Menu, X, Brain, LogOut, LogIn, UserPlus, LayoutDashboard, Settings } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -64,6 +64,13 @@ function Navigation() {
                       </span>
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/recruiter/settings">
+                      <span className="inline-flex items-center">
+                        <Settings className="mr-2 h-4 w-4" /> Ustawienia
+                      </span>
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => signOut({ callbackUrl: "/" })}
@@ -102,45 +109,51 @@ function Navigation() {
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
               {!session?.user ? (
-                <>
-                  <Link href="/auth/signin" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
-                    <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
-                      <LogIn className="h-4 w-4" />
-                      <span>Zaloguj</span>
-                    </Button>
-                  </Link>
-                  <Link href="/auth/register" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
-                    <Button className="w-full flex items-center justify-center space-x-2">
-                      <UserPlus className="h-4 w-4" />
-                      <span>Zarejestruj</span>
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link href="/recruiter" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
-                    <Button className="w-full flex items-center justify-center space-x-2">
-                      <LayoutDashboard className="h-4 w-4" />
-                      <span>Panel</span>
-                    </Button>
-                  </Link>
-                </>
-              )}
-              <div className="pt-2 border-t border-border">
-                {session?.user ? (
-                  <Button 
-                    variant="ghost" 
-                    className="w-full text-red-600 hover:bg-red-50 hover:text-red-700" 
-                    onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" /> Wyloguj
-                  </Button>
+                  <>
+                    <Link href="/auth/signin" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full flex items-center justify-center space-x-2 bg-transparent">
+                        <LogIn className="h-4 w-4" />
+                        <span>Zaloguj</span>
+                      </Button>
+                    </Link>
+                    <Link href="/auth/register" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                      <Button className="w-full flex items-center justify-center space-x-2">
+                        <UserPlus className="h-4 w-4" />
+                        <span>Zarejestruj</span>
+                      </Button>
+                    </Link>
+                  </>
                 ) : (
-                  <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signIn(undefined, { callbackUrl: "/" }) }}>
-                    <LogIn className="mr-2 h-4 w-4" /> Zaloguj
-                  </Button>
+                  <>
+                    <Link href="/recruiter" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                      <Button className="w-full flex items-center justify-center space-x-2">
+                        <LayoutDashboard className="h-4 w-4" />
+                        <span>Panel</span>
+                      </Button>
+                    </Link>
+                    <Link href="/recruiter/settings" className="text-foreground" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full flex items-center justify-center space-x-2">
+                        <Settings className="h-4 w-4" />
+                        <span>Ustawienia</span>
+                      </Button>
+                    </Link>
+                  </>
                 )}
-              </div>
+                <div className="pt-2 border-t border-border">
+                  {session?.user ? (
+                    <Button 
+                      variant="ghost" 
+                      className="w-full text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-300" 
+                      onClick={() => { setIsMenuOpen(false); signOut({ callbackUrl: "/" }) }}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" /> Wyloguj
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" className="w-full" onClick={() => { setIsMenuOpen(false); signIn(undefined, { callbackUrl: "/" }) }}>
+                      <LogIn className="mr-2 h-4 w-4" /> Zaloguj
+                    </Button>
+                  )}
+                </div>
             </div>
           </div>
         )}

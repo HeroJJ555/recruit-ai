@@ -75,6 +75,9 @@ export function CandidateList() {
                 const name = `${candidate.firstName ?? ""} ${candidate.lastName ?? ""}`.trim()
                 const skills = candidate.skills ? (candidate.skills as string).split(",").map((s: string) => s.trim()).filter(Boolean) : []
                 const appliedDate = candidate.createdAt ? formatDistanceToNow(new Date(candidate.createdAt), { addSuffix: true, locale: pl }) : "-"
+                const matchScore = candidate.cvAnalysis?.matchScore ?? null
+                const hasAnalysis = !!candidate.cvAnalysis
+                const analysisSource = candidate.cvAnalysis?.aiProvider || null
 
                 return (
                   <div
@@ -117,9 +120,17 @@ export function CandidateList() {
                       <div className="text-center">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-500" />
-                          <span className={`font-semibold ${getScoreColor(undefined)}`}>{"-"}</span>
+                          <span className={`font-semibold ${getScoreColor(matchScore)}`}>
+                            {matchScore !== null ? `${Math.round(matchScore)}%` : "-"}
+                          </span>
                         </div>
-                        <p className="text-xs text-muted-foreground">Dopasowanie AI</p>
+                        <p className="text-xs text-muted-foreground">
+                          {hasAnalysis ? (
+                            analysisSource === 'heuristic' ? 'Analiza podstawowa' : 'Dopasowanie AI'
+                          ) : (
+                            'Brak analizy'
+                          )}
+                        </p>
                       </div>
                       <TooltipProvider>
                         <div className="flex items-center gap-1 shrink-0 min-w-[84px] justify-end">

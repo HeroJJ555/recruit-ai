@@ -27,9 +27,6 @@ async function getLatestCvKey(appId: string, bucket: string) {
     file.name && !file.name.includes('analysis.json')
   ) || []
   
-  console.log('All files found:', files?.map(f => f.name))
-  console.log('CV files filtered:', cvFiles.map(f => f.name))
-  
   if (cvFiles.length > 0) return `${prefix}/${cvFiles[0].name}`
   return null
 }
@@ -44,19 +41,6 @@ async function downloadAsArrayBuffer(bucket: string, key: string) {
 
 async function extractText(fileName: string, bytes: ArrayBuffer): Promise<string> {
   const ext = extOf(fileName)
-  console.log(`\n=== EXTRACTING TEXT FROM ${ext.toUpperCase()} FILE ===`)
-  console.log(`File: ${fileName}`)
-  console.log(`Size: ${bytes.byteLength} bytes`)
-  console.log(`Extension: ${ext}`)
-  
-  // Log binary preview
-  const buffer = Buffer.from(bytes)
-  const preview = buffer.slice(0, 100).toString('hex')
-  console.log(`Binary preview (first 100 bytes): ${preview}`)
-  
-  // Check file signature
-  const signature = buffer.slice(0, 10).toString('hex')
-  console.log(`File signature: ${signature}`)
   
   if (ext === 'pdf') {
     return await extractFromPDF(bytes, fileName)
@@ -65,12 +49,10 @@ async function extractText(fileName: string, bytes: ArrayBuffer): Promise<string
     return await extractFromDOCX(bytes)
   }
   if (ext === 'txt') {
-    console.log('Processing as plain text file')
     return Buffer.from(bytes).toString('utf-8')
   }
   
   // Fallback: try utf-8 decode for unknown formats
-  console.log('Using fallback UTF-8 decoding')
   const text = Buffer.from(bytes).toString('utf-8')
   if (text.trim().length === 0) {
     throw new Error('No readable text found in file')
@@ -87,16 +69,8 @@ async function extractFromPDF(bytes: ArrayBuffer, fileName: string): Promise<str
   
   // Check if it's actually a PDF
   const pdfHeader = buffer.slice(0, 4).toString()
-  console.log(`PDF Header: "${pdfHeader}"`)
   if (!pdfHeader.startsWith('%PDF')) {
-    console.log('❌ NOT A VALID PDF! Missing %PDF header')
     throw new Error('File is not a valid PDF - missing %PDF header')
-  }
-  
-  // Get PDF version
-  const versionMatch = buffer.slice(0, 20).toString().match(/%PDF-(\d\.\d)/)
-  if (versionMatch) {
-    console.log(`✅ PDF Version: ${versionMatch[1]}`)
   }
   
   const methods = [
@@ -656,7 +630,6 @@ async function extractFallbackText(bytes: ArrayBuffer): Promise<string> {
 async function extractFromDOCX(bytes: ArrayBuffer): Promise<string> {
   try {
     const mammoth = await import('mammoth') as any
-    console.log('Using mammoth for DOCX extraction')
     const res = await mammoth.extractRawText({ buffer: Buffer.from(bytes) })
     const text = String(res.value || '').trim()
     
@@ -666,7 +639,6 @@ async function extractFromDOCX(bytes: ArrayBuffer): Promise<string> {
     
     return text
   } catch (error: any) {
-    console.error(`DOCX extraction error:`, error.message)
     throw new Error(`Failed to extract text from DOCX: ${error.message}`)
   }
 }
@@ -862,89 +834,88 @@ async function writeCached(bucket: string, appId: string, value: any) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  console.log('=== CV ANALYZE API CALLED ===', params.id)
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const search = new URL(req.url).searchParams
   const refresh = search.get('refresh') === '1'
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'cvs'
-  console.log('Request params - refresh:', refresh, 'bucket:', bucket)
 
   const app = await prisma.candidateApplication.findUnique({
     where: { id: params.id },
-    select: { id: true, cvFileName: true }
+    include: { 
+      cvAnalysis: true,
+      job: {
+        select: {
+          title: true,
+          description: true,
+          requirements: true,
+          goldenCandidate: true
+        }
+      }
+    }
   })
   if (!app) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (!refresh) {
-    console.log('Checking cache for app:', app.id)
-    const cached = await readCached(bucket, app.id)
-    console.log('Cache result:', cached ? 'Found cached data' : 'No cache found')
-    if (cached) {
-      console.log('Returning cached data:', JSON.stringify(cached, null, 2))
-      return NextResponse.json({ cached: true, result: cached })
+  // Check if we have analysis in database (unless refresh is requested)
+  if (!refresh && app.cvAnalysis) {
+    // Transform database result to API format
+    const dbResult = {
+      summary: app.cvAnalysis.summary || '',
+      compatibility_score: app.cvAnalysis.matchScore || 50,
+      key_highlights: app.cvAnalysis.technicalSkills ? 
+        (Array.isArray(app.cvAnalysis.technicalSkills) ? app.cvAnalysis.technicalSkills.slice(0, 5) : []) : [],
+      technical_skills: app.cvAnalysis.technicalSkills || [],
+      experience_summary: {
+        years: app.cvAnalysis.experienceYears || 0,
+        level: 'mid', // Default, could be extracted from summary
+        key_roles: [],
+        relevance_to_position: app.cvAnalysis.summary ? 'Z bazy danych' : ''
+      },
+      standout_projects: [],
+      interview_questions: app.cvAnalysis.interviewQuestions || [],
+      potential_concerns: [],
+      metadata: {
+        source: 'database',
+        ai_provider: app.cvAnalysis.aiProvider,
+        ai_model: app.cvAnalysis.aiModel,
+        token_usage: app.cvAnalysis.tokenUsage,
+        processing_time_ms: app.cvAnalysis.processingTimeMs,
+        created_at: app.cvAnalysis.createdAt,
+        updated_at: app.cvAnalysis.updatedAt
+      }
     }
+    
+    return NextResponse.json({ 
+      cached: true, 
+      source: 'database',
+      result: dbResult 
+    })
   }
 
+  // If refresh requested or no database analysis, proceed with AI analysis
   const key = await getLatestCvKey(app.id, bucket)
-  console.log('Found CV key:', key)
   if (!key) return NextResponse.json({ error: 'CV not found in storage' }, { status: 404 })
 
   try {
     const bytes = await downloadAsArrayBuffer(bucket, key)
-    console.log(`Downloaded CV file, size: ${bytes.byteLength} bytes`)
-    console.log('File path:', key)
     
     const fileName = app.cvFileName || key.split('/').pop() || 'file'
-    console.log(`Attempting to extract text from file: ${fileName}`)
-    console.log('Is this an analysis.json file?', key.includes('analysis.json'))
     
     let text = ''
     try {
-      console.log(`\n=== STARTING TEXT EXTRACTION ===`)
       text = await extractText(fileName, bytes)
-      console.log(`\n=== TEXT EXTRACTION COMPLETED ===`)
-      console.log(`✅ Text extraction successful, length: ${text.length} characters`)
       
-      // Detailed text analysis
-      const lines = text.split('\n').filter(line => line.trim().length > 0)
-      const words = text.split(/\s+/).filter(word => word.length > 0)
+      // Check if extracted text looks like garbage (too many non-alphabetic characters)
       const alphabeticChars = (text.match(/[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g) || []).length
       const alphabeticRatio = alphabeticChars / text.length
       
-      console.log(`📊 TEXT QUALITY ANALYSIS:`)
-      console.log(`   Total characters: ${text.length}`)
-      console.log(`   Non-empty lines: ${lines.length}`)
-      console.log(`   Words: ${words.length}`)
-      console.log(`   Alphabetic characters: ${alphabeticChars}`)
-      console.log(`   Alphabetic ratio: ${alphabeticRatio.toFixed(3)}`)
-      console.log(`   Quality: ${alphabeticRatio >= 0.3 ? '✅ GOOD' : '⚠️ POOR (may need OCR)'}`)
-      
-      console.log(`\n📄 TEXT PREVIEW (first 500 characters):`)
-      console.log(`"${text.substring(0, 500)}"`)
-      
-      if (lines.length > 0) {
-        console.log(`\n📝 FIRST 5 LINES:`)
-        lines.slice(0, 5).forEach((line, i) => {
-          console.log(`   ${i+1}: "${line.substring(0, 100)}"`)
-        })
-      }
-      
-      // Check if extracted text looks like garbage (too many non-alphabetic characters)
-      console.log(`\n🔍 QUALITY CHECK - alphabetic ratio: ${alphabeticRatio}`)
-      
       if (alphabeticRatio < 0.3) {
-        console.log('⚠️ Extracted text appears to be garbage, trying OCR...')
         try {
           text = await extractWithOCR(bytes)
-          console.log(`✅ OCR extraction successful, length: ${text.length} characters`)
-          console.log(`📄 OCR TEXT PREVIEW: "${text.substring(0, 200)}"`)
         } catch (ocrError) {
-          console.log('❌ OCR failed, using original text:', ocrError)
+          // Continue with original text if OCR fails
         }
-      } else {
-        console.log('✅ Text quality acceptable, proceeding with extracted text')
       }
     } catch (extractError: any) {
       console.error('Text extraction failed:', extractError.message)
@@ -985,17 +956,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     
     let result: any
     
-    // INSTANT ANALYSIS - try AI but fallback immediately to heuristic for speed
+    // Set a 15-second timeout for OpenAI response (complex analysis needs more time)
     console.log('Attempting AI analysis with OpenAI timeout...')
+    const startTime = Date.now()
+    
     try {
-      // Set a 15-second timeout for OpenAI response (complex analysis needs more time)
       const aiPromise = chatJSON(prompt)
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('AI timeout')), 15000)
       )
       
       result = await Promise.race([aiPromise, timeoutPromise])
+      const endTime = Date.now()
+      const processingTimeMs = endTime - startTime
+      
       console.log('✅ AI analysis completed successfully')
+      console.log(`⏱️ Processing time: ${processingTimeMs}ms`)
       
       // Ensure result has required fields for new format
       if (result && typeof result === 'object') {
@@ -1021,9 +997,51 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         }
       }
       
+      // Save analysis to database
+      console.log('💾 Saving analysis to database...')
+      try {
+        await prisma.cvAnalysis.upsert({
+          where: {
+            candidateApplicationId: params.id
+          },
+          create: {
+            candidateApplicationId: params.id,
+            analyzedText: text.substring(0, 10000), // Limit text length for storage
+            summary: result.summary || '',
+            technicalSkills: result.technical_skills || [],
+            experienceYears: result.experience_summary?.years || 0,
+            matchScore: result.compatibility_score || 50,
+            interviewQuestions: result.interview_questions || [],
+            aiProvider: 'openai',
+            aiModel: 'gpt-4o-mini',
+            tokenUsage: null, // Would need to extract from AI response
+            processingTimeMs: processingTimeMs
+          },
+          update: {
+            analyzedText: text.substring(0, 10000),
+            summary: result.summary || '',
+            technicalSkills: result.technical_skills || [],
+            experienceYears: result.experience_summary?.years || 0,
+            matchScore: result.compatibility_score || 50,
+            interviewQuestions: result.interview_questions || [],
+            aiProvider: 'openai',
+            aiModel: 'gpt-4o-mini',
+            tokenUsage: null,
+            processingTimeMs: processingTimeMs,
+            updatedAt: new Date()
+          }
+        })
+        console.log('✅ Analysis saved to database successfully')
+      } catch (dbError: any) {
+        console.error('❌ Failed to save to database:', dbError.message)
+        // Continue with the response even if database save fails
+      }
+      
     } catch (error: any) {
       console.log(`⚠️ AI analysis failed (${error.message}), falling back to heuristic`)
       const heuristicResult = heuristicAnalysis(text)
+      const endTime = Date.now()
+      const processingTimeMs = endTime - startTime
       
       // Calculate compatibility score with golden candidate
       let compatibilityScore = 50 // Default score
@@ -1097,11 +1115,54 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           }
         })
       }
+      
+      // Save heuristic analysis to database
+      console.log('💾 Saving heuristic analysis to database...')
+      try {
+        await prisma.cvAnalysis.upsert({
+          where: {
+            candidateApplicationId: params.id
+          },
+          create: {
+            candidateApplicationId: params.id,
+            analyzedText: text.substring(0, 10000),
+            summary: result.summary || '',
+            technicalSkills: result.technical_skills || [],
+            experienceYears: result.experience_summary?.years || 0,
+            matchScore: result.compatibility_score || 50,
+            interviewQuestions: result.interview_questions || [],
+            aiProvider: 'heuristic',
+            aiModel: 'fallback',
+            tokenUsage: 0,
+            processingTimeMs: processingTimeMs
+          },
+          update: {
+            analyzedText: text.substring(0, 10000),
+            summary: result.summary || '',
+            technicalSkills: result.technical_skills || [],
+            experienceYears: result.experience_summary?.years || 0,
+            matchScore: result.compatibility_score || 50,
+            interviewQuestions: result.interview_questions || [],
+            aiProvider: 'heuristic',
+            aiModel: 'fallback',
+            tokenUsage: 0,
+            processingTimeMs: processingTimeMs,
+            updatedAt: new Date()
+          }
+        })
+        console.log('✅ Heuristic analysis saved to database successfully')
+      } catch (dbError: any) {
+        console.error('❌ Failed to save heuristic analysis to database:', dbError.message)
+      }
     }
     
     console.log('Caching result and returning response...')
     await writeCached(bucket, app.id, result)
-    return NextResponse.json({ cached: false, result })
+    return NextResponse.json({ 
+      cached: false, 
+      source: 'fresh_analysis',
+      result: result 
+    })
   } catch (e: any) {
     console.error('Analysis error:', e)
     return NextResponse.json({ error: e?.message || 'Analysis failed' }, { status: 500 })

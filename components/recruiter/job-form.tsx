@@ -53,19 +53,19 @@ export function JobForm({ onCreated, editMode = false, initialData, onSuccess, o
         publish,
       }
 
-      console.log("Sending payload:", JSON.stringify(payload, null, 2))
+      try {
+        const response = await fetch('/api/recruiter/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        
+        if (!response.ok) {
+          const j = await response.json().catch(() => ({}))
+          throw new Error(j.error || `Nie udało się ${editMode ? 'zaktualizować' : 'utworzyć'} oferty`)
+        }
 
-      const url = editMode ? `/api/recruiter/jobs/${initialData.id}` : "/api/recruiter/jobs"
-      const method = editMode ? "PATCH" : "POST"
-      
-      const res = await fetch(url, { method, body: JSON.stringify(payload) })
-      
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        throw new Error(j.error || `Nie udało się ${editMode ? 'zaktualizować' : 'utworzyć'} oferty`)
-      }
-
-      const result = await res.json()
+        const result = await response.json()
       
       if (editMode) {
         onSuccess?.()
