@@ -22,22 +22,7 @@ export function AIAssistantWidget() {
   const [messages, setMessages] = useState<Message[]>([{
     id: "init",
     role: "assistant",
-<<<<<<< HEAD
     content: "Cześć! Jestem Twoim asystentem AI. Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
-=======
-    content: `👋 Cześć! Jestem prawdziwym asystentem AI działającym na modelu **Llama-3.1-Storm-8B**, specjalizującym się w rekrutacji i HR.
-
-🧠 **Mogę Ci pomóc jako AI w:**
-• Analizowaniu CV i profili kandydatów
-• Tworzeniu opisów stanowisk pracy  
-• Przygotowaniu pytań do rozmów kwalifikacyjnych
-• Strategiach rekrutacyjnych i employer brandingu
-• Interpretacji danych HR i optymalizacji procesów
-
-**Zadaj mi dowolne pytanie związane z HR - odpowiem jako AI!**
-
-Przykład: *"Jak ocenić czy kandydat na stanowisko Senior React Developer pasuje do naszego zespołu?"*`,
->>>>>>> 4d0541d36d9d9313bb5f30da37ae7872b55eab3c
     timestamp: new Date(),
   }])
   const [inputValue, setInputValue] = useState("")

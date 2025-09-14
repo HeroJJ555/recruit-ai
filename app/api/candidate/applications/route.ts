@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
             aiProvider: true,
             createdAt: true
           }
-        }
+        } as any
       },
       orderBy: { createdAt: "desc" },
       take: 50, // Limit results for better performance

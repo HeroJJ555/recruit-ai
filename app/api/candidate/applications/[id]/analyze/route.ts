@@ -659,7 +659,7 @@ async function getGoldenCandidate(appId: string) {
     const app = await prisma.candidateApplication.findUnique({
       where: { id: appId },
       select: { 
-        jobId: true,
+        jobId: true as any,
         job: {
           select: {
             title: true,
@@ -668,9 +668,9 @@ async function getGoldenCandidate(appId: string) {
             // @ts-ignore - goldenCandidate może nie być w typach Prisma
             goldenCandidate: true
           }
-        }
+        } as any
       }
-    })
+    }) as any
     
     if (app?.job?.goldenCandidate) {
       return {
@@ -854,7 +854,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const app = await prisma.candidateApplication.findUnique({
     where: { id: params.id },
     include: { 
-      cvAnalysis: true,
+      cvAnalysis: true as any,
       job: {
         select: {
           title: true,
