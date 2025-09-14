@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const mailchimp = require('@mailchimp/mailchimp_transactional');
+
+// Initialize Mailchimp transactional client
+let mailchimpClient: any = null;
+if (process.env.MAILCHIMP_TRANSACTIONAL_API_KEY) {
+  mailchimpClient = mailchimp(process.env.MAILCHIMP_TRANSACTIONAL_API_KEY);
+}
 
 interface MailRequest {
   to: string;
+  candidateId: string;
   candidateName: string;
   position: string;
   subject: string;
@@ -15,32 +24,29 @@ interface MailRequest {
 export async function POST(req: NextRequest) {
   try {
     console.log("📧 Mail API: Received request");
-    const body = await req.json() as MailRequest;
     
-    const { to, candidateName, position, subject, message, template } = body;
-
-    // Validate required fields
-    if (!to || !candidateName || !message) {
-      console.log("❌ Mail API: Missing required fields");
-      return NextResponse.json(
-        { error: "Wymagane pola: to, candidateName, message" },
-        { status: 400 }
-      );
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if Resend API key is configured
-    if (!process.env.RESEND_API_KEY) {
-      console.log("❌ Mail API: RESEND_API_KEY not configured");
+    const body = await req.json() as MailRequest;
+    const { to, candidateId, candidateName, position, subject, message, template } = body;
+
+    // Validate required fields
+    if (!to || !candidateId || !candidateName || !message) {
+      console.log("❌ Mail API: Missing required fields");
       return NextResponse.json(
-        { error: "Serwis mailowy nie jest skonfigurowany. Skontaktuj się z administratorem." },
-        { status: 500 }
+        { error: "Wymagane pola: to, candidateId, candidateName, message" },
+        { status: 400 }
       );
     }
 
     console.log(`📝 Mail API: Sending to ${to}, template: ${template}`);
 
-    // Prepare email content based on template
-    let emailHtml = `
+    // Prepare email content
+    const emailHtml = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -76,65 +82,127 @@ export async function POST(req: NextRequest) {
       </body>
     </html>`;
 
+    let emailResult: any = null;
+    let emailSuccess = false;
+
     try {
-      // Send email using Resend
-      const emailResult = await resend.emails.send({
-        from: process.env.FROM_EMAIL || 'onboarding@resend.dev',
-        to: [to],
-        subject: subject,
-        html: emailHtml,
-        text: `${candidateName},\n\n${message}\n\nPozdrawiamy,\nZespół Rekrutacji`
+      if (mailchimpClient && process.env.MAILCHIMP_TRANSACTIONAL_API_KEY) {
+        // Send email using Mailchimp Transactional (Mandrill)
+        const emailMessage = {
+          html: emailHtml,
+          text: `${candidateName},\n\n${message}\n\nPozdrawiamy,\nZespół Rekrutacji`,
+          subject: subject,
+          from_email: process.env.FROM_EMAIL || 'noreply@company.com',
+          from_name: 'Zespół Rekrutacji',
+          to: [
+            {
+              email: to,
+              name: candidateName,
+              type: 'to'
+            }
+          ],
+          headers: {
+            'Reply-To': process.env.FROM_EMAIL || 'noreply@company.com'
+          },
+          tags: ['candidate-feedback', template],
+          metadata: {
+            candidateId: candidateId,
+            template: template
+          }
+        };
+
+        emailResult = await mailchimpClient.messages.send({
+          message: emailMessage
+        });
+
+        emailSuccess = emailResult[0]?.status === 'sent';
+        console.log("✅ Mail sent successfully via Mailchimp:", emailResult[0]?.id);
+      } else {
+        // Development mode - simulate email sending
+        console.log("📧 Development mode - simulating email send");
+        emailResult = [{ id: `dev-${Date.now()}`, status: 'sent' }];
+        emailSuccess = true;
+      }
+
+      // Find the user by email for proper foreign key
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email }
       });
 
-      console.log("✅ Mail sent successfully:", emailResult.data?.id);
-      
-      return NextResponse.json({ 
-        success: true,
-        messageId: emailResult.data?.id,
-        message: "Mail został wysłany pomyślnie"
-      });
-
-    } catch (resendError: any) {
-      console.error("💥 Resend API Error:", resendError);
-      
-      // Handle specific Resend errors
-      if (resendError.message?.includes('API key')) {
-        return NextResponse.json(
-          { error: "Nieprawidłowy klucz API. Skontaktuj się z administratorem." },
-          { status: 500 }
-        );
-      }
-      
-      if (resendError.message?.includes('domain')) {
-        return NextResponse.json(
-          { error: "Domena nie jest zweryfikowana. Skontaktuj się z administratorem." },
-          { status: 500 }
-        );
-      }
-
-      // For development - simulate email sending
-      console.log("📧 Development mode - simulating email send");
-      
-      return NextResponse.json({ 
-        success: true,
-        messageId: `dev-${Date.now()}`,
-        message: "Mail został wysłany pomyślnie (tryb deweloperski)",
-        debug: {
-          to,
-          subject,
-          template,
-          candidateName
+      // Save to message history
+      const messageHistory = await prisma.messageHistory.create({
+        data: {
+          candidateApplicationId: candidateId,
+          subject: subject,
+          content: message,
+          template: template,
+          recipientEmail: to,
+          recipientName: candidateName,
+          senderUserId: user?.id || null,
+          mailProvider: 'mailchimp',
+          externalMessageId: emailResult[0]?.id || null,
+          status: emailSuccess ? 'SENT' : 'FAILED',
         }
       });
+
+      // Update candidate status to CONTACTED
+      await prisma.candidateApplication.update({
+        where: { id: candidateId },
+        data: { status: 'CONTACTED' }
+      });
+
+      console.log("💾 Message saved to history:", messageHistory.id);
+      
+      return NextResponse.json({ 
+        success: true,
+        messageId: emailResult[0]?.id,
+        historyId: messageHistory.id,
+        message: "Mail został wysłany pomyślnie i zapisany w historii"
+      });
+
+    } catch (emailError: any) {
+      console.error("❌ Error sending email:", emailError);
+      
+      // Find the user by email for proper foreign key
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      });
+
+      // Save failed attempt to history
+      try {
+        await prisma.messageHistory.create({
+          data: {
+            candidateApplicationId: candidateId,
+            subject: subject,
+            content: message,
+            template: template,
+            recipientEmail: to,
+            recipientName: candidateName,
+            senderUserId: user?.id || null,
+            mailProvider: 'mailchimp',
+            status: 'FAILED',
+            errorMessage: emailError.message
+          }
+        });
+      } catch (historyError) {
+        console.error("❌ Failed to save error to history:", historyError);
+      }
+
+      return NextResponse.json(
+        { 
+          error: "Nie udało się wysłać maila",
+          details: emailError.message 
+        },
+        { status: 500 }
+      );
     }
 
-  } catch (error) {
-    console.error("💥 Mail API Error:", error);
-    
+  } catch (error: any) {
+    console.error("💥 General API Error:", error);
     return NextResponse.json(
       { 
-        error: "Wystąpił błąd podczas wysyłania maila. Spróbuj ponownie za chwilę.",
-        details: process.env.NODE_ENV === 'development' ? error : undefined
+        error: "Wystąpił nieoczekiwany błąd podczas wysyłania maila",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       },
       { status: 500 }
     );

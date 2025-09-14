@@ -34,8 +34,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch candidates with their CV analysis
+    // Fetch candidates with their CV analysis who haven't been contacted yet
     const candidates = await prisma.candidateApplication.findMany({
+      where: {
+        status: {
+          not: 'CONTACTED' // Exclude already contacted candidates
+        }
+      },
       select: {
         id: true,
         firstName: true,
@@ -46,6 +51,7 @@ export async function GET(req: NextRequest) {
         skills: true,
         cvFileName: true,
         createdAt: true,
+        status: true,
         cvAnalysis: {
           select: {
             matchScore: true,

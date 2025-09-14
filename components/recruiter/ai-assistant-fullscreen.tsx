@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Brain, Send, User, Bot } from "lucide-react"
+import { Brain, Send, User, Bot, ExternalLink } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 
 interface Message {
@@ -20,13 +20,28 @@ interface Message {
 export function AIAssistantFullscreen() {
   const searchParams = useSearchParams()
   const initialQuestion = searchParams.get('q') || ""
+  const contextParam = searchParams.get('context') || ""
   
-  const [messages, setMessages] = useState<Message[]>([{
+  // Spróbuj załadować kontekst z URL
+  let initialMessages: Message[] = [{
     id: "init",
     role: "assistant",
     content: "Cześć! Jestem Twoim asystentem AI. Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
     timestamp: new Date(),
-  }])
+  }]
+  
+  if (contextParam) {
+    try {
+      const decodedMessages = JSON.parse(decodeURIComponent(contextParam))
+      if (Array.isArray(decodedMessages) && decodedMessages.length > 0) {
+        initialMessages = decodedMessages
+      }
+    } catch (error) {
+      console.warn("Nie udało się załadować kontekstu rozmowy:", error)
+    }
+  }
+  
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState(initialQuestion)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -35,12 +50,14 @@ export function AIAssistantFullscreen() {
   const shouldStickToBottomRef = useRef(true)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Auto-send initial question if provided
+  // Sprawdź czy jest initial question w URL ale nie wysyłaj automatycznie
+  // Użytkownik może sam nacisnąć Enter jeśli chce
   useEffect(() => {
-    if (initialQuestion && messages.length === 1) {
-      handleSendMessage()
+    if (initialQuestion && initialQuestion.trim()) {
+      console.log("Initial question available:", initialQuestion)
+      // Input value jest już ustawione w useState
     }
-  }, [initialQuestion])
+  }, [])
 
   const handleScroll = useCallback(() => {
     if (!scrollAreaRef.current) return
@@ -105,6 +122,17 @@ export function AIAssistantFullscreen() {
         <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
+        {contextParam && (
+          <div className="mb-4 p-3 bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 rounded-lg animate-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2 text-sm text-primary">
+              <ExternalLink className="h-4 w-4" />
+              <span className="font-medium">Rozmowa kontynuowana z dashboardu</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Historia rozmowy została pomyślnie przeniesiona. Możesz kontynuować w pełnym widoku.
+            </p>
+          </div>
+        )}
         <ScrollArea className="flex-1 pr-4 min-h-0" ref={scrollAreaRef as any} onScroll={handleScroll}>
           <div className="space-y-4" >
             {messages.map(message => {
@@ -116,7 +144,13 @@ export function AIAssistantFullscreen() {
                       {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className={`h-4 w-4 ${message.error ? "text-destructive" : "text-secondary-foreground"}`} />}
                     </div>
                     <div className={`p-3 rounded-lg text-sm leading-relaxed ${isUser ? "bg-primary text-primary-foreground" : message.error ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                      <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
+                      <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ 
+                        __html: message.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                          .replace(/• /g, '• ')
+                          .replace(/\n/g, '<br/>')
+                      }} />
                       {message.pending && !message.error && (
                         <div className="mt-2 flex space-x-1">
                           <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
