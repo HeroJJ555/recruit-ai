@@ -41,40 +41,53 @@
 }
 
 .dark {
-  /* Updated dark mode colors for recruitment platform */
-  --background: oklch(0.1 0 0); /* Dark background */
-  --foreground: oklch(0.95 0 0); /* Light text */
-  --card: oklch(0.15 0 0); /* Dark card */
-  --card-foreground: oklch(0.95 0 0); /* Light card text */
-  --popover: oklch(0.1 0 0); /* Dark popover */
-  --popover-foreground: oklch(0.95 0 0); /* Light popover text */
-  --primary: oklch(0.6 0.15 200); /* Brighter cyan for dark mode */
-  --primary-foreground: oklch(0.1 0 0); /* Dark text on primary */
-  --secondary: oklch(0.2 0 0); /* Dark secondary */
-  --secondary-foreground: oklch(0.95 0 0); /* Light text on secondary */
-  --muted: oklch(0.2 0 0); /* Dark muted */
-  --muted-foreground: oklch(0.7 0 0); /* Muted text */
-  --accent: oklch(0.2 0 0); /* Dark accent */
-  --accent-foreground: oklch(0.95 0 0); /* Light accent text */
-  --destructive: oklch(0.5 0.2 25); /* Dark mode destructive */
-  --destructive-foreground: oklch(0.95 0 0); /* Light destructive text */
-  --border: oklch(0.2 0 0); /* Dark border */
-  --input: oklch(0.2 0 0); /* Dark input */
-  --ring: oklch(0.6 0.15 200 / 0.5); /* Dark mode ring */
-  --chart-1: oklch(0.6 0.2 260); /* Dark mode chart colors */
-  --chart-2: oklch(0.7 0.17 160);
-  --chart-3: oklch(0.77 0.19 70);
-  --chart-4: oklch(0.63 0.27 300);
-  --chart-5: oklch(0.65 0.25 16);
-  --sidebar: oklch(0.15 0 0); /* Dark sidebar */
-  --sidebar-foreground: oklch(0.95 0 0); /* Light sidebar text */
-  --sidebar-primary: oklch(0.6 0.15 200); /* Bright primary in sidebar */
-  --sidebar-primary-foreground: oklch(0.1 0 0); /* Dark text on sidebar primary */
-  --sidebar-accent: oklch(0.2 0 0); /* Dark sidebar accent */
-  --sidebar-accent-foreground: oklch(0.95 0 0); /* Light sidebar accent text */
-  --sidebar-border: oklch(0.2 0 0); /* Dark sidebar border */
-  --sidebar-ring: oklch(0.6 0.15 200 / 0.5); /* Dark sidebar ring */
+  /* Refined dark mode for higher readability & subtle elevation */
+  --background: oklch(0.12 0 0); /* base background */
+  --foreground: oklch(0.92 0.01 250); /* near-white with tiny chroma */
+  --card: oklch(0.17 0 0); /* surface level 1 */
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.16 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.65 0.14 210); /* vibrant but accessible */
+  --primary-foreground: oklch(0.12 0 0);
+  --secondary: oklch(0.22 0 0);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.20 0 0);
+  --muted-foreground: oklch(0.70 0 0);
+  --accent: oklch(0.24 0 0);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.52 0.21 25);
+  --destructive-foreground: oklch(0.96 0 0);
+  --border: oklch(0.28 0 0); /* more contrast for dividers */
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.70 0.14 210 / 0.6);
+  /* Adjusted chart palette for dark backgrounds */
+  --chart-1: oklch(0.72 0.18 260);
+  --chart-2: oklch(0.75 0.17 160);
+  --chart-3: oklch(0.78 0.19 70);
+  --chart-4: oklch(0.68 0.25 300);
+  --chart-5: oklch(0.70 0.24 16);
+  --sidebar: oklch(0.18 0 0); /* slightly lighter than background */
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: oklch(0.26 0 0);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: oklch(0.30 0 0);
+  --sidebar-ring: var(--ring);
+
+  /* Subtle elevated surfaces */
+  --surface-1: var(--card);
+  --surface-2: oklch(0.20 0 0);
+  --surface-3: oklch(0.24 0 0);
 }
+
+/* Optional utility classes for dark elevated surfaces */
+.dark .surface-1 { background-color: var(--surface-1); }
+.dark .surface-2 { background-color: var(--surface-2); }
+.dark .surface-3 { background-color: var(--surface-3); }
+
+.dark .hover-elevate:hover { background-color: oklch(0.24 0 0); }
 
 @theme inline {
   /* Added Space Grotesk and DM Sans fonts for recruitment platform */

@@ -1,16 +1,14 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Send, Users, CheckCircle, XCircle, Clock, FileText, MessageSquare, Loader2, AlertCircle, User, Bot, Eye, Calendar } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Mail, Send, MessageSquare, Loader2, CheckCircle, XCircle, AlertCircle, Bot, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Candidate {
@@ -18,644 +16,383 @@ interface Candidate {
   name: string;
   email: string;
   position: string;
+  status: 'pending' | 'contacted' | 'interviewed' | 'hired' | 'rejected';
+  appliedDate?: string;
   cvAnalysis: {
     score: number;
     strengths: string[];
     weaknesses: string[];
     recommendation: 'hire' | 'maybe' | 'reject';
   };
-  appliedDate: string;
-  status: 'pending' | 'contacted' | 'interviewed' | 'hired' | 'rejected';
-  experience?: string;
-  skills?: string;
-  aiProvider?: string | null;
-  summary?: string | null;
 }
 
-// Email templates with placeholders
-const EMAIL_TEMPLATES = {
+type BuiltInTemplate = 'positive' | 'neutral' | 'negative';
+type TemplateKey = BuiltInTemplate | 'custom' | 'ai-feedback' | '';
+
+const EMAIL_TEMPLATES: Record<BuiltInTemplate, { subject: string; content: string }> = {
   positive: {
-    subject: "Gratulacje! Zaproszenie na rozmowę - {{position}}",
-    content: `Szanowny/a {{candidateName}},
-
-Dziękujemy za aplikację na stanowisko {{position}}. Po analizie Twojego CV jesteśmy pod wrażeniem Twoich kwalifikacji!
-
-**Twoje mocne strony:**
-{{#strengths}}
-• {{.}}
-{{/strengths}}
-
-Osiągnąłeś/aś {{score}} punktów na 100 możliwych w naszej analizie, co kwalifikuje Cię do kolejnego etapu.
-
-**Następne kroki:**
-Chcielibyśmy zaprosić Cię na rozmowę kwalifikacyjną. Skontaktujemy się z Tobą w ciągu 2-3 dni roboczych.
-
-Gratulujemy i czekamy na spotkanie!
-
-Pozdrawiamy,
-Zespół Rekrutacji`
+    subject: 'Gratulacje – kolejny etap rekrutacji ({{position}})',
+    content: `Cześć {{candidateName}},\n\nDziękujemy za Twoją aplikację na stanowisko {{position}}. Po analizie CV otrzymałeś wynik {{score}}/100. Jesteśmy pod wrażeniem Twoich mocnych stron:\n{{#strengths}}• {{.}}\n{{/strengths}}\nChcielibyśmy zaprosić Cię do kolejnego etapu. Skontaktujemy się wkrótce z propozycją terminu.\n\nPozdrawiamy\nZespół Rekrutacji`
   },
   neutral: {
-    subject: "Dodatkowe informacje - {{position}}",
-    content: `Szanowny/a {{candidateName}},
-
-Dziękujemy za zainteresowanie stanowiskiem {{position}}.
-
-**Pozytywne elementy Twojego profilu:**
-{{#strengths}}
-• {{.}}
-{{/strengths}}
-
-**Potrzebujemy wyjaśnienia:**
-{{#weaknesses}}
-• {{.}}
-{{/weaknesses}}
-
-Prosimy o przesłanie dodatkowych informacji lub dokumentów. Alternatywnie zapraszamy na krótką rozmowę telefoniczną.
-
-Pozdrawiamy,
-Zespół Rekrutacji`
+    subject: 'Aktualizacja procesu rekrutacji – {{position}}',
+    content: `Cześć {{candidateName}},\n\nDziękujemy za przesłanie aplikacji na stanowisko {{position}}. Twój wynik to {{score}}/100. Doceniamy szczególnie:\n{{#strengths}}• {{.}}\n{{/strengths}}\nObecnie analizujemy pozostałe zgłoszenia i wrócimy do Ciebie z informacją o dalszych krokach.\n\nPozdrawiamy\nZespół Rekrutacji`
   },
   negative: {
-    subject: "Feedback dotyczący aplikacji - {{position}}",
-    content: `Szanowny/a {{candidateName}},
-
-Dziękujemy za aplikację na stanowisko {{position}}.
-
-Po analizie musieliśmy podjąć decyzję o nieprzejściu do kolejnego etapu na to konkretne stanowisko.
-
-{{#strengths}}
-**Pozytywne elementy:**
-{{#strengths}}
-• {{.}}
-{{/strengths}}
-
-{{/strengths}}
-**Obszary do rozwoju:**
-{{#weaknesses}}
-• {{.}}
-{{/weaknesses}}
-
-Zachęcamy do śledzenia naszych przyszłych ofert. Życzymy powodzenia!
-
-Pozdrawiamy,
-Zespół Rekrutacji`
+    subject: 'Dziękujemy za aplikację – {{position}}',
+    content: `Cześć {{candidateName}},\n\nDziękujemy za zainteresowanie stanowiskiem {{position}}. Po analizie CV (wynik {{score}}/100) musimy tym razem zakończyć proces.\nMocne strony:\n{{#strengths}}• {{.}}\n{{/strengths}}\nObszary do wzmocnienia:\n{{#weaknesses}}• {{.}}\n{{/weaknesses}}\nZachęcamy do śledzenia kolejnych ofert. Powodzenia!\n\nPozdrawiamy\nZespół Rekrutacji`
   }
 };
 
-const mockCandidates: Candidate[] = [];
+interface StoredCustomTemplates {
+  [key: string]: { subject: string; content: string };
+}
+
+// Helper to apply simple mustache-like placeholders & sections
+function processTemplate(raw: string, candidate: Candidate): string {
+  let out = raw;
+  out = out.replace(/{{candidateName}}/g, candidate.name)
+           .replace(/{{position}}/g, candidate.position)
+           .replace(/{{score}}/g, String(candidate.cvAnalysis.score));
+  // section strengths
+  out = out.replace(/{{#strengths}}([\s\S]*?){{\/strengths}}/g, (_m, inner) => candidate.cvAnalysis.strengths.map(s => inner.replace(/{{\.}}/g, s)).join('\n'));
+  out = out.replace(/{{#weaknesses}}([\s\S]*?){{\/weaknesses}}/g, (_m, inner) => candidate.cvAnalysis.weaknesses.map(s => inner.replace(/{{\.}}/g, s)).join('\n'));
+  return out;
+}
 
 export default function MessagesContent() {
+  const { toast } = useToast();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  const [emailTemplate, setEmailTemplate] = useState('');
-  const [customSubject, setCustomSubject] = useState('');
-  const [customMessage, setCustomMessage] = useState('');
-  const [aiTone, setAiTone] = useState<'positive' | 'neutral' | 'negative'>('neutral');
-  const [aiInstructions, setAiInstructions] = useState('');
+  const [templateKey, setTemplateKey] = useState<TemplateKey>('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [messageHistory, setMessageHistory] = useState<any[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyPage, setHistoryPage] = useState(1);
-  const [historyPagination, setHistoryPagination] = useState<any>(null);
-  const { toast } = useToast();
+  const [sending, setSending] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<StoredCustomTemplates>({});
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateSubject, setNewTemplateSubject] = useState('');
+  const [newTemplateContent, setNewTemplateContent] = useState('');
+  const [aiTone, setAiTone] = useState<'pozytywny' | 'neutralny' | 'negatywny'>('neutralny');
+  const [aiInstructions, setAiInstructions] = useState('');
 
-  // Fetch candidates from database
+  // Fetch candidates
   useEffect(() => {
-    fetchCandidates();
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/recruiter/candidates-for-feedback');
+        if (!res.ok) throw new Error('Błąd pobierania');
+        const data = await res.json();
+        setCandidates(data.candidates || data || []); // adapt to current route shape
+      } catch (e) {
+        console.error(e);
+        toast({ title: 'Błąd', description: 'Nie udało się pobrać kandydatów', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [toast]);
+
+  // Load custom templates
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('custom-email-templates');
+      if (raw) setCustomTemplates(JSON.parse(raw));
+    } catch {}
   }, []);
 
-  // Fetch message history when history tab is accessed
-  const fetchMessageHistory = async (page = 1) => {
-    try {
-      setHistoryLoading(true);
-      const response = await fetch(`/api/recruiter/message-history?page=${page}&limit=10`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch message history');
+  const persistCustomTemplates = (next: StoredCustomTemplates) => {
+    setCustomTemplates(next);
+    try { window.localStorage.setItem('custom-email-templates', JSON.stringify(next)); } catch {}
+  };
+
+  const addCustomTemplate = () => {
+    if (!newTemplateName.trim() || !newTemplateSubject.trim() || !newTemplateContent.trim()) return;
+    const key = newTemplateName.trim().toLowerCase().replace(/\s+/g, '-');
+    const next = { ...customTemplates, [key]: { subject: newTemplateSubject, content: newTemplateContent } };
+    persistCustomTemplates(next);
+    setNewTemplateName(''); setNewTemplateSubject(''); setNewTemplateContent('');
+    toast({ title: 'Zapisano', description: 'Szablon został zapisany lokalnie.' });
+  };
+
+  const deleteCustomTemplate = (key: string) => {
+    const next = { ...customTemplates }; delete next[key]; persistCustomTemplates(next);
+  };
+
+  const pendingCandidates = candidates.filter(c => c.status === 'pending');
+  const contactedCandidates = candidates.filter(c => ['contacted','interviewed','hired'].includes(c.status));
+  const archivedCandidates = candidates.filter(c => c.status === 'rejected');
+
+  const resetComposer = () => {
+    setTemplateKey(''); setSubject(''); setMessage(''); setAiInstructions(''); setAiTone('neutralny');
+  };
+
+  const handleSelectCandidate = (c: Candidate) => {
+    setSelectedCandidate(c);
+    resetComposer();
+  };
+
+  const applyTemplate = (key: TemplateKey, cand: Candidate) => {
+    if (!cand) return;
+    if (key === 'custom') return; // custom is free-form
+    if (key === 'ai-feedback') {
+      setSubject(`Feedback dotyczący aplikacji – ${cand.position}`);
+      setMessage('');
+      return;
+    }
+    if (key && key in EMAIL_TEMPLATES) {
+      const tpl = EMAIL_TEMPLATES[key as BuiltInTemplate];
+      setSubject(processTemplate(tpl.subject, cand));
+      setMessage(processTemplate(tpl.content, cand));
+    }
+  };
+
+  const onTemplateChange = (value: TemplateKey) => {
+    setTemplateKey(value);
+    if (selectedCandidate) applyTemplate(value, selectedCandidate);
+  };
+
+  const optimisticStatus = (candidate: Candidate, template: TemplateKey) => {
+    let nextStatus: Candidate['status'] = candidate.status;
+    if (template === 'negative') nextStatus = 'rejected';
+    else if (template === 'positive' || template === 'neutral' || template === 'custom' || template === 'ai-feedback') {
+      // For AI we decide based on recommendation
+      if (template === 'ai-feedback') {
+        if (candidate.cvAnalysis.recommendation === 'reject') nextStatus = 'rejected';
+        else nextStatus = 'contacted';
+      } else {
+        nextStatus = 'contacted';
       }
-      
-      const data = await response.json();
-      setMessageHistory(data.messages || []);
-      setHistoryPagination(data.pagination);
-      
-      console.log(`✅ Loaded ${data.messages?.length || 0} message history entries`);
-    } catch (error) {
-      console.error('Error fetching message history:', error);
-      toast({
-        title: "Błąd",
-        description: "Nie udało się pobrać historii wiadomości",
-        variant: "destructive",
-      });
-    } finally {
-      setHistoryLoading(false);
+    }
+    if (nextStatus !== candidate.status) {
+      setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, status: nextStatus } : c));
     }
   };
 
-  const fetchCandidates = async () => {
+  const handleGenerateAI = async () => {
+    if (!selectedCandidate) return;
+    setAiGenerating(true);
     try {
-      setLoading(true);
-      const response = await fetch('/api/recruiter/candidates-for-feedback');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch candidates');
-      }
-      
-      const data = await response.json();
-      setCandidates(data.candidates || []);
-      
-      console.log(`✅ Loaded ${data.candidates?.length || 0} candidates from database`);
-    } catch (error) {
-      console.error('Error fetching candidates:', error);
-      toast({
-        title: "Błąd",
-        description: "Nie udało się pobrać listy kandydatów",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Template processing function
-  const processTemplate = (template: string, candidate: Candidate): string => {
-    let processed = template;
-    
-    // Replace placeholders
-    processed = processed.replace(/\{\{candidateName\}\}/g, candidate.name);
-    processed = processed.replace(/\{\{position\}\}/g, candidate.position);
-    processed = processed.replace(/\{\{score\}\}/g, candidate.cvAnalysis.score.toString());
-    
-    // Handle strengths list
-    const strengthsList = candidate.cvAnalysis.strengths
-      .map(strength => `• ${strength}`)
-      .join('\n');
-    processed = processed.replace(/\{\{#strengths\}\}[\s\S]*?\{\{\/strengths\}\}/g, strengthsList);
-    
-    // Handle weaknesses list
-    const weaknessesList = candidate.cvAnalysis.weaknesses
-      .map(weakness => `• ${weakness}`)
-      .join('\n');
-    processed = processed.replace(/\{\{#weaknesses\}\}[\s\S]*?\{\{\/weaknesses\}\}/g, weaknessesList);
-    
-    return processed;
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'contacted': return <Mail className="h-4 w-4 text-blue-500" />;
-      case 'interviewed': return <Users className="h-4 w-4 text-purple-500" />;
-      case 'hired': return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'rejected': return <XCircle className="h-4 w-4 text-red-500" />;
-      default: return <Clock className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const getRecommendationBadge = (recommendation: string) => {
-    switch (recommendation) {
-      case 'hire':
-        return <Badge className="bg-green-100 text-green-800">Polecam</Badge>;
-      case 'maybe':
-        return <Badge className="bg-yellow-100 text-yellow-800">Do rozważenia</Badge>;
-      case 'reject':
-        return <Badge className="bg-red-100 text-red-800">Odrzuć</Badge>;
-      default:
-        return <Badge variant="secondary">Nieznane</Badge>;
-    }
-  };
-
-  // Unified AI generation helper using new /api/mail/generate endpoint
-  const generateAIEmail = async (candidate: Candidate): Promise<string | null> => {
-    try {
-      let temperature = 0.2;
-      if (typeof window !== 'undefined') {
-        const stored = window.localStorage.getItem('ai-temp');
-        if (stored) {
-          const num = parseFloat(stored);
-          if (!isNaN(num)) temperature = Math.max(0, Math.min(1, num));
-        }
-      }
-      const response = await fetch('/api/mail/generate', {
+      const temperature = (() => { try { const v = localStorage.getItem('ai-temp'); if (!v) return 0.2; const n = parseFloat(v); return isNaN(n)?0.2:Math.min(1,Math.max(0,n)); } catch { return 0.2; } })();
+      const res = await fetch('/api/mail/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidate: {
-            name: candidate.name,
-            position: candidate.position,
-            score: candidate.cvAnalysis.score,
-            strengths: candidate.cvAnalysis.strengths,
-            weaknesses: candidate.cvAnalysis.weaknesses,
-            recommendation: candidate.cvAnalysis.recommendation
+            name: selectedCandidate.name,
+            position: selectedCandidate.position,
+            score: selectedCandidate.cvAnalysis.score,
+            strengths: selectedCandidate.cvAnalysis.strengths,
+            weaknesses: selectedCandidate.cvAnalysis.weaknesses,
+            recommendation: selectedCandidate.cvAnalysis.recommendation
           },
-          tone: aiTone,
-          recruiterInstructions: aiInstructions || undefined,
-          language: 'pl',
-          temperature
+            tone: aiTone,
+            recruiterInstructions: aiInstructions || undefined,
+            language: 'pl',
+            temperature
         })
       });
-      if (!response.ok) return null;
-      const data = await response.json();
-      return data.content || null;
+      if (!res.ok) throw new Error('Błąd generowania');
+      const data = await res.json();
+      if (data.content) setMessage(data.content);
     } catch (e) {
-      console.error('AI generate error', e);
-      return null;
+      console.error(e);
+      toast({ title: 'Błąd AI', description: 'Nie udało się wygenerować treści', variant: 'destructive' });
+    } finally {
+      setAiGenerating(false);
     }
   };
 
-  const generateFallbackFeedback = (candidate: Candidate) => {
-    const { cvAnalysis } = candidate;
-    
-    if (cvAnalysis.recommendation === 'hire') {
-      return `Dziękujemy za aplikację na stanowisko ${candidate.position}. 
-
-Po analizie Twojego CV jesteśmy pod wrażeniem Twoich kwalifikacji, szczególnie:
-${cvAnalysis.strengths.map(s => `• ${s}`).join('\n')}
-
-Chcielibyśmy zaprosić Cię na rozmowę kwalifikacyjną. Skontaktujemy się z Tobą w ciągu najbliższych dni w celu ustalenia terminu.
-
-Pozdrawiamy,
-Zespół Rekrutacji`;
-    } else if (cvAnalysis.recommendation === 'maybe') {
-      return `Dziękujemy za zainteresowanie stanowiskiem ${candidate.position}.
-
-Twoje CV zawiera obiecujące elementy:
-${cvAnalysis.strengths.map(s => `• ${s}`).join('\n')}
-
-Jednocześnie chcielibyśmy zwrócić uwagę na obszary do rozwoju:
-${cvAnalysis.weaknesses.map(w => `• ${w}`).join('\n')}
-
-Rozważymy Twoją kandydaturę i skontaktujemy się z Tobą, jeśli zdecydujemy o dalszych krokach.
-
-Pozdrawiamy,
-Zespół Rekrutacji`;
-    } else {
-      return `Dziękujemy za aplikację na stanowisko ${candidate.position}.
-
-Po dokładnej analizie Twojego CV musieliśmy podjąć trudną decyzję o nieprzejściu do kolejnego etapu rekrutacji. Twój profil nie odpowiada w pełni aktualnym wymaganiom stanowiska.
-
-Zachęcamy do śledzenia naszych przyszłych ofert pracy, które mogą lepiej odpowiadać Twoim kwalifikacjom.
-
-Dziękujemy za zainteresowanie naszą firmą.
-
-Pozdrawiamy,
-Zespół Rekrutacji`;
-    }
-  };
-
-  const handleSendEmail = async () => {
-    if (!selectedCandidate) return;
-
-    setIsLoading(true);
+  const handleSend = async () => {
+    if (!selectedCandidate || !templateKey) return;
+    if (!message.trim() && templateKey !== 'ai-feedback') return;
+    setSending(true);
     try {
-      let finalMessage = customMessage;
-      let finalSubject = customSubject;
-      
-      // Use template if selected
-      if (emailTemplate && emailTemplate !== 'custom' && emailTemplate !== 'ai-feedback') {
-        const template = EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES];
-        if (template) {
-          finalSubject = processTemplate(template.subject, selectedCandidate);
-          finalMessage = processTemplate(template.content, selectedCandidate);
-        }
+      // If ai-feedback chosen and no generated message fallback simple message
+      let finalMessage = message;
+      if (templateKey === 'ai-feedback' && !finalMessage.trim()) {
+        finalMessage = `Cześć ${selectedCandidate.name},\n\nDziękujemy za aplikację. Wkrótce przekażemy szczegółowy feedback.\n\nPozdrawiamy\nZespół Rekrutacji`;
       }
-      
-      // If AI mode chosen and we don't yet have generated text, auto-generate now
-      if (emailTemplate === 'ai-feedback') {
-        if (!finalMessage.trim()) {
-          const aiText = await generateAIEmail(selectedCandidate);
-          if (aiText) {
-            finalMessage = aiText;
-          } else {
-            // fallback
-            finalMessage = generateFallbackFeedback(selectedCandidate);
-            toast({
-              title: 'AI niedostępne',
-              description: 'Użyto fallback zamiast generowanego tekstu.',
-            });
-          }
-        }
-      }
-
-      const response = await fetch('/api/mail/feedback', {
+      const res = await fetch('/api/mail/feedback', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: selectedCandidate.email,
           candidateName: selectedCandidate.name,
-          position: selectedCandidate.position,
-          subject: finalSubject || `Feedback dot. aplikacji - ${selectedCandidate.position}`,
+            position: selectedCandidate.position,
+          subject: subject || `Feedback – ${selectedCandidate.position}`,
           message: finalMessage,
-          template: emailTemplate,
+          template: templateKey,
           candidateId: selectedCandidate.id
-        }),
+        })
       });
-
-      if (!response.ok) {
-        throw new Error('Błąd wysyłania maila');
-      }
-
-      const result = await response.json();
-
-      toast({
-        title: "Mail wysłany!",
-        description: `Feedback został wysłany do ${selectedCandidate.name}. Kandydat został oznaczony jako skontaktowany.`,
-      });
-
-      // Refresh candidates list to show updated status
-      fetchCandidates();
-
-      // Reset form
+      if (!res.ok) throw new Error('Błąd wysyłania');
+      toast({ title: 'Wysłano', description: 'Wiadomość została wysłana.' });
+      optimisticStatus(selectedCandidate, templateKey);
       setSelectedCandidate(null);
-      setCustomMessage('');
-      setCustomSubject('');
-      setEmailTemplate('');
-
-    } catch (error) {
-      console.error('Send email error:', error);
-      toast({
-        title: "Błąd",
-        description: "Nie udało się wysłać maila. Spróbuj ponownie.",
-        variant: "destructive",
-      });
+      resetComposer();
+    } catch (e) {
+      console.error(e);
+      toast({ title: 'Błąd', description: 'Nie udało się wysłać wiadomości', variant: 'destructive' });
     } finally {
-      setIsLoading(false);
+      setSending(false);
+    }
+  };
+
+  const handleDelete = async (candidate: Candidate) => {
+    if (!confirm(`Usunąć kandydata ${candidate.name}?`)) return;
+    const prev = candidates;
+    setCandidates(p => p.filter(c => c.id !== candidate.id));
+    if (selectedCandidate?.id === candidate.id) setSelectedCandidate(null);
+    try {
+      const res = await fetch(`/api/recruiter/candidates/${candidate.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      toast({ title: 'Usunięto', description: 'Kandydat został usunięty.' });
+    } catch (e) {
+      console.error(e);
+      setCandidates(prev); // rollback
+      toast({ title: 'Błąd', description: 'Nie udało się usunąć kandydata', variant: 'destructive' });
+    }
+  };
+
+  const manualMove = (candidate: Candidate, target: 'contacted' | 'rejected') => {
+    setCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, status: target } : c));
+    if (selectedCandidate?.id === candidate.id) {
+      setSelectedCandidate({ ...candidate, status: target });
     }
   };
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">Wiadomości</h1>
-          <p className="text-muted-foreground">
-            Zarządzaj komunikacją z kandydatami i wysyłaj spersonalizowany feedback
-          </p>
+          <p className="text-muted-foreground text-sm">Zarządzaj komunikacją z kandydatami (bez zakładki historii).</p>
         </div>
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5" />
-          <span className="text-sm text-muted-foreground">
-            {candidates.filter(c => c.status === 'pending').length} oczekujących
-          </span>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">{pendingCandidates.length} oczekujących</span>
+          <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">{contactedCandidates.length} skontaktowanych</span>
+          <span className="px-2 py-1 rounded-full bg-rose-500/10 text-rose-400">{archivedCandidates.length} archiwum</span>
         </div>
       </div>
 
       <Tabs defaultValue="candidates" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="candidates">Kandydaci</TabsTrigger>
+          <TabsTrigger value="candidates">Kandydaci ({pendingCandidates.length})</TabsTrigger>
+          <TabsTrigger value="contacted">Skontaktowani ({contactedCandidates.length})</TabsTrigger>
+          <TabsTrigger value="archived">Archiwum ({archivedCandidates.length})</TabsTrigger>
           <TabsTrigger value="templates">Szablony</TabsTrigger>
-          <TabsTrigger value="history">Historia</TabsTrigger>
         </TabsList>
 
+        {/* Pending candidates + composer */}
         <TabsContent value="candidates" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Lista kandydatów */}
-            <Card>
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle>Kandydaci oczekujący feedback</CardTitle>
-                <CardDescription>
-                  Wybierz kandydata, aby wysłać spersonalizowaną wiadomość
-                </CardDescription>
+                <CardTitle>Oczekujący</CardTitle>
+                <CardDescription>Lista kandydatów bez feedbacku</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    <span className="ml-2">Ładowanie kandydatów...</span>
+              <CardContent className="space-y-3">
+                {loading && (
+                  <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Ładowanie...
                   </div>
-                ) : candidates.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4" />
-                    <p>Brak kandydatów oczekujących na feedback.</p>
-                    <p className="text-sm mt-2">Kandydaci pojawią się tutaj po złożeniu aplikacji.</p>
+                )}
+                {!loading && pendingCandidates.length === 0 && (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-50" /> Brak kandydatów.
                   </div>
-                ) : (
-                  candidates.map((candidate) => (
-                    <div
-                      key={candidate.id}
-                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedCandidate?.id === candidate.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setSelectedCandidate(candidate)}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold">{candidate.name}</h3>
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(candidate.status)}
-                          {getRecommendationBadge(candidate.cvAnalysis.recommendation)}
-                        </div>
+                )}
+                {!loading && pendingCandidates.map(c => (
+                  <div
+                    key={c.id}
+                    onClick={() => handleSelectCandidate(c)}
+                    className={`group border rounded-md p-3 text-sm transition-colors cursor-pointer ${selectedCandidate?.id === c.id ? 'border-primary bg-primary/5' : 'hover:border-muted-foreground/40'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{c.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{c.position}</p>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {candidate.position}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {candidate.email} • Aplikacja: {candidate.appliedDate}
-                      </p>
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <FileText className="h-3 w-3" />
-                          <span>Ocena CV: {candidate.cvAnalysis.score}/100</span>
-                        </div>
+                      <div className="flex gap-1">
+                        <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); manualMove(c,'contacted'); }}>Kontakt</Button>
+                        <Button variant="outline" size="sm" className="text-rose-500" onClick={(e) => { e.stopPropagation(); manualMove(c,'rejected'); }}>Odrzuć</Button>
+                        <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(c); }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
-                  ))
-                )}
+                    <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px]">Wynik {c.cvAnalysis.score}</Badge>
+                      <span>{c.cvAnalysis.recommendation}</span>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
 
-            {/* Formularz wysyłania maila */}
-            <Card>
+            <Card className="h-full">
               <CardHeader>
-                <CardTitle>Wyślij feedback</CardTitle>
-                <CardDescription>
-                  Spersonalizowana wiadomość dla kandydata
-                </CardDescription>
+                <CardTitle>Wiadomość</CardTitle>
+                <CardDescription>{selectedCandidate ? `Do: ${selectedCandidate.name}` : 'Wybierz kandydata z listy po lewej'}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!selectedCandidate ? (
-                  <Alert>
-                    <Mail className="h-4 w-4" />
-                    <AlertTitle>Wybierz kandydata</AlertTitle>
-                    <AlertDescription>
-                      Najpierw wybierz kandydata z listy po lewej stronie.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
+                {!selectedCandidate && (
+                  <p className="text-sm text-muted-foreground">Brak wybranego kandydata.</p>
+                )}
+                {selectedCandidate && (
                   <>
                     <div className="space-y-2">
-                      <Label>Kandydat</Label>
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <p className="font-medium">{selectedCandidate.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedCandidate.email}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedCandidate.position}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="template">Szablon wiadomości</Label>
-                      <Select value={emailTemplate} onValueChange={setEmailTemplate}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Wybierz szablon lub napisz własny" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ai-feedback">AI - Automatyczny feedback</SelectItem>
-                          <SelectItem value="positive">Pozytywny - Zaproszenie na rozmowę</SelectItem>
-                          <SelectItem value="neutral">Neutralny - Prośba o więcej info</SelectItem>
-                          <SelectItem value="negative">Negatywny - Odrzucenie</SelectItem>
-                          <SelectItem value="custom">Napisz własny</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Temat wiadomości</Label>
-                      <Input
-                        id="subject"
-                        value={customSubject}
-                        onChange={(e) => setCustomSubject(e.target.value)}
-                        placeholder={`Feedback dot. aplikacji - ${selectedCandidate.position}`}
-                      />
-                    </div>
-
-                    {(emailTemplate === 'positive' || emailTemplate === 'neutral' || emailTemplate === 'negative') && selectedCandidate && (
-                      <div className="space-y-2">
-                        <Label>Podgląd szablonu</Label>
-                        <div className="p-3 bg-gray-50 rounded-lg border text-sm">
-                          <p className="font-medium mb-2">
-                            Temat: {processTemplate(EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES].subject, selectedCandidate)}
-                          </p>
-                          <div className="whitespace-pre-line text-xs text-muted-foreground max-h-32 overflow-y-auto">
-                            {processTemplate(EMAIL_TEMPLATES[emailTemplate as keyof typeof EMAIL_TEMPLATES].content, selectedCandidate)}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {emailTemplate === 'custom' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="message">Treść wiadomości</Label>
-                        <Textarea
-                          id="message"
-                          rows={8}
-                          value={customMessage}
-                          onChange={(e) => setCustomMessage(e.target.value)}
-                          placeholder="Napisz spersonalizowaną wiadomość..."
-                        />
-                      </div>
-                    )}
-
-                    {emailTemplate === 'ai-feedback' && (
-                      <div className="space-y-4">
-                        <Alert>
-                          <FileText className="h-4 w-4" />
-                          <AlertTitle>AI Feedback</AlertTitle>
-                          <AlertDescription>
-                            Wiadomość generowana przez model (llama). Ocena: {selectedCandidate.cvAnalysis.score}/100 — {selectedCandidate.cvAnalysis.recommendation === 'hire' ? 'Polecam' : selectedCandidate.cvAnalysis.recommendation === 'maybe' ? 'Do rozważenia' : 'Odrzuć'}
-                          </AlertDescription>
-                        </Alert>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="space-y-2 md:col-span-1">
-                            <Label>Ton wiadomości</Label>
-                            <Select value={aiTone} onValueChange={(v: any) => setAiTone(v)}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="positive">Pozytywny</SelectItem>
-                                <SelectItem value="neutral">Neutralny</SelectItem>
-                                <SelectItem value="negative">Negatywny</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2 md:col-span-2">
-                            <Label>Dodatkowe instrukcje dla AI (opcjonalnie)</Label>
-                            <Textarea
-                              rows={3}
-                              placeholder="Np. skróć do 4 akapitów, dodaj zaproszenie na rozmowę online, zachowaj empatyczny ton..."
-                              value={aiInstructions}
-                              onChange={(e) => setAiInstructions(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <Label>Szablon</Label>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {(['positive','neutral','negative','ai-feedback','custom'] as TemplateKey[]).map(t => (
                           <Button
+                            key={t}
                             type="button"
-                            variant="secondary"
-                            disabled={aiGenerating}
-                            onClick={async () => {
-                              if (!selectedCandidate) return;
-                              setAiGenerating(true);
-                              try {
-                                const response = await fetch('/api/mail/generate', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    candidate: {
-                                      name: selectedCandidate.name,
-                                      position: selectedCandidate.position,
-                                      score: selectedCandidate.cvAnalysis.score,
-                                      strengths: selectedCandidate.cvAnalysis.strengths,
-                                      weaknesses: selectedCandidate.cvAnalysis.weaknesses,
-                                      recommendation: selectedCandidate.cvAnalysis.recommendation
-                                    },
-                                    tone: aiTone,
-                                    recruiterInstructions: aiInstructions || undefined,
-                                    language: 'pl',
-                                    temperature: ((): number => { try { const v = window.localStorage.getItem('ai-temp'); if (!v) return 0.2; const n = parseFloat(v); return isNaN(n)?0.2:Math.max(0,Math.min(1,n)); } catch { return 0.2 } })()
-                                  })
-                                });
-                                if (!response.ok) throw new Error('Błąd generowania');
-                                const data = await response.json();
-                                if (data.content) {
-                                  setCustomMessage(data.content);
-                                }
-                              } catch (err) {
-                                toast({
-                                  title: 'Błąd AI',
-                                  description: 'Nie udało się wygenerować treści przy użyciu modelu. Użyj własnej treści.',
-                                  variant: 'destructive'
-                                });
-                              } finally {
-                                setAiGenerating(false);
-                              }
-                            }}
+                            variant={templateKey === t ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => onTemplateChange(t)}
                           >
+                            {t === 'positive' && 'Pozytywny'}
+                            {t === 'neutral' && 'Neutralny'}
+                            {t === 'negative' && 'Negatywny'}
+                            {t === 'ai-feedback' && 'AI'}
+                            {t === 'custom' && 'Własny'}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Temat</Label>
+                      <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Temat wiadomości" />
+                    </div>
+                    {templateKey === 'ai-feedback' && (
+                      <div className="space-y-2">
+                        <Label>Instrukcje dla AI (opcjonalne)</Label>
+                        <Textarea rows={3} value={aiInstructions} onChange={e=>setAiInstructions(e.target.value)} placeholder="Np. podkreśl umiejętności front-end" />
+                        <div className="flex items-center gap-2">
+                          <Button type="button" size="sm" disabled={aiGenerating} onClick={handleGenerateAI}>
                             {aiGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Bot className="h-4 w-4 mr-2" />}
                             {aiGenerating ? 'Generowanie...' : 'Wygeneruj treść'}
-                          </Button>  
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Wygenerowana treść (możesz edytować przed wysłaniem)</Label>
-                          <Textarea
-                            rows={8}
-                            value={customMessage}
-                            onChange={(e) => setCustomMessage(e.target.value)}
-                            placeholder="Kliknij 'Wygeneruj treść' aby utworzyć wiadomość..."
-                          />
+                          </Button>
+                          <span className="text-[10px] text-muted-foreground">Używa aktualnego ustawienia temperatury AI</span>
                         </div>
                       </div>
                     )}
-
+                    <div className="space-y-2">
+                      <Label>Treść</Label>
+                      <Textarea rows={10} value={message} onChange={e=>setMessage(e.target.value)} placeholder={templateKey === 'ai-feedback' ? 'Wygeneruj lub wklej treść...' : 'Treść wiadomości'} />
+                    </div>
                     <Button
-                      onClick={handleSendEmail}
-                      disabled={isLoading || !emailTemplate || (
-                        (emailTemplate === 'custom' && !customMessage.trim()) ||
-                        (emailTemplate === 'ai-feedback' && !customMessage.trim())
-                      )}
+                      disabled={!templateKey || sending || (templateKey !== 'ai-feedback' && !message.trim())}
+                      onClick={handleSend}
                       className="w-full"
                     >
-                      <Send className="mr-2 h-4 w-4" />
-                      {isLoading ? 'Wysyłanie...' : 'Wyślij feedback'}
+                      {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                      {sending ? 'Wysyłanie...' : 'Wyślij'}
                     </Button>
                   </>
                 )}
@@ -664,211 +401,137 @@ Zespół Rekrutacji`;
           </div>
         </TabsContent>
 
-        <TabsContent value="templates">
+        {/* Contacted */}
+        <TabsContent value="contacted" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Szablony wiadomości</CardTitle>
-              <CardDescription>
-                Predefiniowane szablony z automatycznym wypełnianiem danych kandydata
-              </CardDescription>
+              <CardTitle>Skontaktowani</CardTitle>
+              <CardDescription>Kandydaci z wysłanym feedbackiem lub dalej w procesie.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(EMAIL_TEMPLATES).map(([key, template]) => (
-                  <div key={key} className="p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      {key === 'positive' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      {key === 'neutral' && <AlertCircle className="h-4 w-4 text-yellow-500" />}
-                      {key === 'negative' && <XCircle className="h-4 w-4 text-red-500" />}
-                      {key === 'positive' && 'Pozytywny feedback'}
-                      {key === 'neutral' && 'Neutralny feedback'}
-                      {key === 'negative' && 'Negatywny feedback'}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {key === 'positive' && 'Dla kandydatów z wysoką oceną - zaproszenie na rozmowę'}
-                      {key === 'neutral' && 'Dla kandydatów wymagających dodatkowych informacji'}
-                      {key === 'negative' && 'Grzeczne odrzucenie z konstruktywnym feedbackiem'}
-                    </p>
-                    <div className="text-xs bg-gray-50 p-3 rounded">
-                      <p className="font-medium mb-1">Temat:</p>
-                      <p className="mb-2 text-muted-foreground">{template.subject}</p>
-                      <p className="font-medium mb-1">Treść (fragment):</p>
-                      <div className="text-muted-foreground whitespace-pre-line max-h-24 overflow-hidden">
-                        {template.content.substring(0, 200)}...
-                      </div>
-                    </div>
-                    <div className="mt-3 text-xs text-blue-600">
-                      <strong>Placeholders:</strong> {`{{candidateName}}, {{position}}, {{score}}, {{strengths}}, {{weaknesses}}`}
-                    </div>
+            <CardContent className="space-y-3">
+              {contactedCandidates.length === 0 && <p className="text-sm text-muted-foreground">Brak kandydatów.</p>}
+              {contactedCandidates.map(c => (
+                <div key={c.id} className="p-3 border rounded-md text-sm flex flex-col gap-1 bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{c.name}</span>
+                    <Badge variant="outline" className="text-[10px]">{c.status}</Badge>
                   </div>
-                ))}
-                
-                <div className="p-4 border rounded-lg border-dashed">
-                  <h3 className="font-semibold text-blue-700 mb-2 flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    AI Feedback
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Automatycznie generowany na podstawie analizy CV kandydata
-                  </p>
-                  <div className="text-xs bg-blue-50 p-3 rounded">
-                    <p>• Inteligentna analiza mocnych i słabych stron</p>
-                    <p>• Dopasowany ton w zależności od oceny</p>
-                    <p>• Spersonalizowane rekomendacje</p>
-                    <p>• Wykorzystuje AI do generowania treści</p>
-                  </div>
+                  <span className="text-xs text-muted-foreground">{c.position}</span>
+                  <span className="text-[10px] text-muted-foreground">{c.email}</span>
                 </div>
-              </div>
+              ))}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="history">
+        {/* Archived */}
+        <TabsContent value="archived" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Historia wiadomości</CardTitle>
-              <CardDescription>
-                Przegląd wszystkich wysłanych wiadomości z kandydatami
-              </CardDescription>
+              <CardTitle>Archiwum</CardTitle>
+              <CardDescription>Odrzuceni kandydaci.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {archivedCandidates.length === 0 && <p className="text-sm text-muted-foreground">Brak kandydatów.</p>}
+              {archivedCandidates.map(c => (
+                <div key={c.id} className="p-3 border rounded-md text-sm flex flex-col gap-1 bg-rose-500/5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{c.name}</span>
+                    <Badge variant="outline" className="text-[10px] text-rose-500">{c.status}</Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{c.position}</span>
+                  <span className="text-[10px] text-muted-foreground">{c.email}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Templates */}
+        <TabsContent value="templates" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Wbudowane szablony</CardTitle>
+              <CardDescription>Kliknij aby podejrzeć zawartość.</CardDescription>
             </CardHeader>
             <CardContent>
-              {!messageHistory.length && !historyLoading ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <Button 
-                    onClick={() => fetchMessageHistory(1)}
-                    variant="outline"
-                    className="mb-4"
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Pokaż historię wiadomości
-                  </Button>
-                  <div className="text-center text-muted-foreground">
-                    <Mail className="h-12 w-12 mx-auto mb-4" />
-                    <p>Kliknij przycisk powyżej, aby załadować historię wiadomości.</p>
+              <div className="grid md:grid-cols-3 gap-4">
+                {(['positive','neutral','negative'] as BuiltInTemplate[]).map(key => {
+                  const t = EMAIL_TEMPLATES[key];
+                  return (
+                    <div key={key} className="p-4 border rounded-md space-y-2 text-xs bg-muted/30">
+                      <div className="flex items-center gap-2 font-semibold text-sm">
+                        {key === 'positive' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                        {key === 'neutral' && <AlertCircle className="h-4 w-4 text-yellow-500" />}
+                        {key === 'negative' && <XCircle className="h-4 w-4 text-red-500" />}
+                        <span>{key === 'positive' ? 'Pozytywny' : key === 'neutral' ? 'Neutralny' : 'Negatywny'}</span>
+                      </div>
+                      <div><span className="font-medium">Temat:</span> {t.subject}</div>
+                      <div className="whitespace-pre-line max-h-40 overflow-hidden border bg-background p-2 rounded">
+                        {t.content}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="p-4 border rounded-md space-y-2 text-xs border-dashed">
+                  <div className="flex items-center gap-2 font-semibold text-sm text-blue-600">
+                    <MessageSquare className="h-4 w-4" /> AI Feedback
+                  </div>
+                  <p>Dynamicznie generowany na podstawie analizy CV.</p>
+                  <p className="text-muted-foreground">Placeholders: <code>{'{'}{'{'}candidateName{'}'}{'}'}</code>, <code>{'{'}{'{'}position{'}'}{'}'}</code>, <code>{'{'}{'{'}score{'}'}{'}'}</code>, sekcje strengths / weaknesses.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Własne szablony</CardTitle>
+              <CardDescription>Przechowywane lokalnie (localStorage).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                {Object.entries(customTemplates).length === 0 && (
+                  <p className="text-sm text-muted-foreground md:col-span-2">Brak własnych szablonów.</p>
+                )}
+                {Object.entries(customTemplates).map(([key, tpl]) => (
+                  <div key={key} className="p-3 border rounded-md text-xs space-y-2 relative">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{key}</span>
+                      <div className="flex gap-1">
+                        <Button variant="secondary" size="sm" onClick={() => { setTemplateKey('custom'); setSubject(tpl.subject); setMessage(tpl.content); toast({ title: 'Załadowano', description: 'Szablon wczytany do edycji.' }); }}>Użyj</Button>
+                        <Button variant="outline" size="sm" onClick={() => { setNewTemplateName(key); setNewTemplateSubject(tpl.subject); setNewTemplateContent(tpl.content); }}>Edytuj</Button>
+                        <Button variant="destructive" size="sm" onClick={() => deleteCustomTemplate(key)}>Usuń</Button>
+                      </div>
+                    </div>
+                    <div className="text-muted-foreground truncate">Temat: {tpl.subject}</div>
+                    <div className="text-muted-foreground whitespace-pre-line max-h-24 overflow-hidden border bg-background p-2 rounded">{tpl.content}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-4 space-y-4">
+                <h3 className="font-semibold text-sm">Dodaj / edytuj szablon</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nazwa</Label>
+                    <Input value={newTemplateName} onChange={e=>setNewTemplateName(e.target.value)} placeholder="np. follow-up" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Temat</Label>
+                    <Input value={newTemplateSubject} onChange={e=>setNewTemplateSubject(e.target.value)} placeholder="Temat wiadomości" />
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {historyLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin" />
-                      <span className="ml-2">Ładowanie historii...</span>
-                    </div>
-                  ) : messageHistory.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Mail className="h-12 w-12 mx-auto mb-4" />
-                      <p>Brak wysłanych wiadomości.</p>
-                      <p className="text-sm mt-2">Historia pojawi się po wysłaniu pierwszej wiadomości.</p>
-                    </div>
-                  ) : (
-                    <>
-                      {messageHistory.map((message) => (
-                        <div key={message.id} className="border rounded-lg p-4 space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold">{message.subject}</h4>
-                                <Badge 
-                                  variant={
-                                    message.status === 'SENT' ? 'default' :
-                                    message.status === 'DELIVERED' ? 'secondary' :
-                                    message.status === 'FAILED' ? 'destructive' :
-                                    'outline'
-                                  }
-                                >
-                                  {message.status === 'SENT' ? 'Wysłane' :
-                                   message.status === 'DELIVERED' ? 'Dostarczone' :
-                                   message.status === 'FAILED' ? 'Błąd' :
-                                   message.status}
-                                </Badge>
-                                {message.template && (
-                                  <Badge variant="outline">
-                                    {message.template === 'positive' ? 'Pozytywny' :
-                                     message.template === 'neutral' ? 'Neutralny' :
-                                     message.template === 'negative' ? 'Negatywny' :
-                                     message.template === 'ai-feedback' ? 'AI Feedback' :
-                                     'Custom'}
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  <span>{message.candidate.name}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Mail className="h-3 w-3" />
-                                  <span>{message.candidate.email}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>{new Date(message.sentAt).toLocaleString('pl-PL')}</span>
-                                </div>
-                              </div>
-                              <div className="text-sm">
-                                <strong>Stanowisko:</strong> {message.candidate.position}
-                              </div>
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {message.mailProvider === 'mailchimp' ? 'Mailchimp' : 'Email'}
-                            </div>
-                          </div>
-                          
-                          <div className="bg-gray-50 p-3 rounded text-sm">
-                            <div className="max-h-32 overflow-y-auto">
-                              <pre className="whitespace-pre-wrap font-sans">{message.content}</pre>
-                            </div>
-                          </div>
-                          
-                          {message.errorMessage && (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                <strong>Błąd:</strong> {message.errorMessage}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                      ))}
-                      
-                      {historyPagination && historyPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-4">
-                          <p className="text-sm text-muted-foreground">
-                            Strona {historyPagination.currentPage} z {historyPagination.totalPages} 
-                            ({historyPagination.totalCount} wiadomości)
-                          </p>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!historyPagination.hasPreviousPage || historyLoading}
-                              onClick={() => {
-                                const newPage = historyPagination.currentPage - 1;
-                                setHistoryPage(newPage);
-                                fetchMessageHistory(newPage);
-                              }}
-                            >
-                              Poprzednia
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!historyPagination.hasNextPage || historyLoading}
-                              onClick={() => {
-                                const newPage = historyPagination.currentPage + 1;
-                                setHistoryPage(newPage);
-                                fetchMessageHistory(newPage);
-                              }}
-                            >
-                              Następna
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                <div className="space-y-2">
+                  <Label>Treść</Label>
+                  <Textarea rows={6} value={newTemplateContent} onChange={e=>setNewTemplateContent(e.target.value)} placeholder="Treść z placeholderami ({{candidateName}} etc.)" />
                 </div>
-              )}
+                <div className="flex gap-2">
+                  <Button disabled={!newTemplateName || !newTemplateSubject || !newTemplateContent} onClick={addCustomTemplate}>Zapisz</Button>
+                  <Button variant="outline" type="button" onClick={() => { setNewTemplateName(''); setNewTemplateSubject(''); setNewTemplateContent(''); }}>Wyczyść</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Dostępne placeholders: <code>{'{'}{'{'}candidateName{'}'}{'}'}</code>, <code>{'{'}{'{'}position{'}'}{'}'}</code>, <code>{'{'}{'{'}score{'}'}{'}'}</code>, sekcje strengths / weaknesses.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
