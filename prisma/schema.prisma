@@ -178,7 +178,7 @@ model MessageHistory {
   // Sender info
   senderUserId           String?
   senderUser             User?                @relation("UserMessages", fields: [senderUserId], references: [id], onDelete: SetNull)
-  mailProvider           String               @default("mailchimp")
+  mailProvider           String               @default("resend")
   externalMessageId      String?
   status                 MessageStatus        @default(SENT)
   

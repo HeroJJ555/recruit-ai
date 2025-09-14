@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Resend } from 'resend';
 
-// Initialize Mailchimp transactional client (disabled unless explicitly wired)
-// We avoid importing optional dependency at build time to prevent bundling errors.
-// If Mailchimp is needed, wire a dynamic import guarded by env and ensure dependency is installed.
-let mailchimpClient: any = null;
+// Initialize Resend client
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 interface MailRequest {
   to: string;
@@ -83,41 +82,35 @@ export async function POST(req: NextRequest) {
   let emailSuccess = false;
 
     try {
-      if (mailchimpClient && process.env.MAILCHIMP_TRANSACTIONAL_API_KEY) {
-        // Send email using Mailchimp Transactional (Mandrill)
-        const emailMessage = {
-          html: emailHtml,
-          text: `${candidateName},\n\n${message}\n\nPozdrawiamy,\nZespół Rekrutacji`,
-          subject: subject,
-          from_email: process.env.FROM_EMAIL || 'noreply@company.com',
-          from_name: 'Zespół Rekrutacji',
-          to: [
-            {
-              email: to,
-              name: candidateName,
-              type: 'to'
-            }
-          ],
-          headers: {
-            'Reply-To': process.env.FROM_EMAIL || 'noreply@company.com'
-          },
-          tags: ['candidate-feedback', template],
-          metadata: {
-            candidateId: candidateId,
-            template: template
-          }
-        };
+      if (resend && process.env.RESEND_API_KEY) {
+        // Clean tag values to only contain ASCII letters, numbers, underscores, or dashes
+        const cleanTagValue = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-        emailResult = await mailchimpClient.messages.send({
-          message: emailMessage
+        // Send email using Resend
+        emailResult = await resend.emails.send({
+          from: process.env.FROM_EMAIL || 'onboarding@resend.dev',
+          to: [to],
+          subject: subject,
+          html: emailHtml,
+          replyTo: process.env.FROM_EMAIL || 'onboarding@resend.dev',
+          tags: [
+            {
+              name: 'category',
+              value: 'candidate-feedback'
+            },
+            {
+              name: 'template',
+              value: cleanTagValue(template || 'default')
+            }
+          ]
         });
 
-        emailSuccess = emailResult[0]?.status === 'sent';
-        console.log("✅ Mail sent successfully via Mailchimp:", emailResult[0]?.id);
+        emailSuccess = emailResult && !emailResult.error;
+        console.log("✅ Mail sent successfully via Resend:", emailResult?.data?.id);
       } else {
         // Development mode - simulate email sending
         console.log("📧 Development mode - simulating email send");
-        emailResult = [{ id: `dev-${Date.now()}`, status: 'sent' }];
+        emailResult = { data: { id: `dev-${Date.now()}` } };
         emailSuccess = true;
       }
 
@@ -125,7 +118,7 @@ export async function POST(req: NextRequest) {
       // If needed, re-enable once Prisma schema and client are aligned.
       return NextResponse.json({ 
         success: true,
-        messageId: emailResult[0]?.id,
+        messageId: emailResult?.data?.id || emailResult?.id,
         message: "Mail został wysłany pomyślnie"
       });
 
