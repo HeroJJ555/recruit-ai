@@ -419,7 +419,7 @@ export default async function AnalyticsPage() {
       <main className="flex-1 overflow-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="font-heading font-bold text-2xl leading-tight">Analityka</h1>
+            <h1 className="font-heading font-bold text-2xl leading-tight">Statystyki</h1>
             <p className="text-muted-foreground text-sm">Kluczowe wskaźniki wydajności procesów rekrutacyjnych.</p>
           </div>
           <div className="flex items-center gap-3" />

@@ -504,11 +504,11 @@ Zespół Rekrutacji`;
                           <SelectValue placeholder="Wybierz szablon lub napisz własny" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ai-feedback">🤖 AI - Automatyczny feedback</SelectItem>
-                          <SelectItem value="positive">✅ Pozytywny - Zaproszenie na rozmowę</SelectItem>
-                          <SelectItem value="neutral">ℹ️ Neutralny - Prośba o więcej info</SelectItem>
-                          <SelectItem value="negative">❌ Negatywny - Odrzucenie</SelectItem>
-                          <SelectItem value="custom">✏️ Napisz własny</SelectItem>
+                          <SelectItem value="ai-feedback">AI - Automatyczny feedback</SelectItem>
+                          <SelectItem value="positive">Pozytywny - Zaproszenie na rozmowę</SelectItem>
+                          <SelectItem value="neutral">Neutralny - Prośba o więcej info</SelectItem>
+                          <SelectItem value="negative">Negatywny - Odrzucenie</SelectItem>
+                          <SelectItem value="custom">Napisz własny</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -627,10 +627,7 @@ Zespół Rekrutacji`;
                           >
                             {aiGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Bot className="h-4 w-4 mr-2" />}
                             {aiGenerating ? 'Generowanie...' : 'Wygeneruj treść'}
-                          </Button>
-                          {customMessage && (
-                            <Badge variant="outline" className="text-xs">Treść gotowa</Badge>
-                          )}
+                          </Button>  
                         </div>
                         <div className="space-y-2">
                           <Label>Wygenerowana treść (możesz edytować przed wysłaniem)</Label>
@@ -808,7 +805,7 @@ Zespół Rekrutacji`;
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {message.mailProvider === 'mailchimp' ? '📧 Mailchimp' : '📨 Email'}
+                              {message.mailProvider === 'mailchimp' ? 'Mailchimp' : 'Email'}
                             </div>
                           </div>
                           
