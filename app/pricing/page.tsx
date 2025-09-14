@@ -1,6 +1,7 @@
 import MarketingLayout from '../(marketing)/_layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Check } from 'lucide-react'
+// FAQ usunięte z cennika – ma być na stronie głównej
 
 const plans = [
   { name: 'Starter', price: '0 zł', period: ' / mies.', highlight: false, features: ['Do 1 aktywnej rekrutacji', 'Analiza CV (limitowana)', 'Podstawowy ranking', 'E-mail support'] },
@@ -14,14 +15,18 @@ export default function PricingPage() {
       <section className="max-w-6xl mx-auto px-4 py-16">
         <h1 className="font-heading font-bold text-3xl md:text-4xl mb-4">Cennik</h1>
         <p className="text-muted-foreground max-w-2xl mb-12">Elastyczne plany dopasowane do etapu rozwoju Twojej organizacji. Płać tylko za realną wartość.</p>
-        <div className="grid gap-8 md:grid-cols-3">
+        <div className="grid gap-8 md:grid-cols-3 items-stretch">
           {plans.map(p => (
-            <Card key={p.name} className={p.highlight ? 'border-primary shadow-lg relative' : ''}>
-              {p.highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full">Najpopularniejszy</div>}
+            <Card key={p.name} className={`h-full flex flex-col ${p.highlight ? 'border-primary shadow-lg relative' : ''}`}>
+              {p.highlight && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full">
+                  Najpopularniejszy
+                </div>
+              )}
               <CardHeader>
                 <CardTitle className="text-xl">{p.name}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="flex flex-col gap-6 flex-1">
                 <div>
                   <div className="text-3xl font-bold">{p.price}<span className="text-base font-medium text-muted-foreground">{p.period}</span></div>
                 </div>
@@ -32,7 +37,9 @@ export default function PricingPage() {
                     </li>
                   ))}
                 </ul>
-                <button className="w-full text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition rounded-md py-2">Wybierz plan</button>
+                <div className="mt-auto pt-2">
+                  <button className="w-full text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition rounded-md py-2">Wybierz plan</button>
+                </div>
               </CardContent>
             </Card>
           ))}

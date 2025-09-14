@@ -40,7 +40,7 @@ export function HeroSection() {
 
   {/* Features Grid */}
   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 mb-16">
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+    <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-primary/10 rounded-lg p-3 w-fit mb-4">
                 <Brain className="h-8 w-8 text-primary" />
@@ -52,7 +52,7 @@ export function HeroSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+          <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-secondary/10 rounded-lg p-3 w-fit mb-4">
                 <Zap className="h-8 w-8 text-secondary" />
@@ -64,7 +64,7 @@ export function HeroSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+          <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-accent/10 rounded-lg p-3 w-fit mb-4">
                 <Target className="h-8 w-8 text-accent" />
@@ -76,7 +76,7 @@ export function HeroSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+          <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-chart-1/10 rounded-lg p-3 w-fit mb-4">
                 <BarChart3 className="h-8 w-8 text-chart-1" />
@@ -88,7 +88,7 @@ export function HeroSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+          <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-chart-2/10 rounded-lg p-3 w-fit mb-4">
                 <FileText className="h-8 w-8 text-chart-2" />
@@ -100,7 +100,7 @@ export function HeroSection() {
             </CardContent>
           </Card>
 
-          <Card className="border-2 hover:border-primary/50 transition-colors">
+          <Card className="border bg-background">
             <CardContent className="p-6">
               <div className="bg-chart-3/10 rounded-lg p-3 w-fit mb-4">
                 <Users className="h-8 w-8 text-chart-3" />
