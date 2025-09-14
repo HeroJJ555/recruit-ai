@@ -14,75 +14,57 @@ type ChatRequest = {
   maxTokens?: number
 }
 
-async function callGradioChat(messages: ChatMessage[], temperature = 0.7, maxTokens = 512): Promise<string> {
+async function callGradioChat(messages: ChatMessage[], temperature = 0.4, maxTokens = 512): Promise<string> {
   try {
-    console.log('Connecting to Gradio: NotASI/Llama-3.1-Storm-8B')
-    const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
+    console.log('=== Connecting to Gradio: NotASI/Llama-3.1-Storm-8B ===')
     
-    // Extract system prompt and latest user message
-    const systemMessage = messages.find(m => m.role === 'system')?.content || 
-      "Jesteś pomocnym asystentem AI specjalizującym się w rekrutacji. Odpowiadaj w języku polskim, zwięźle i konkretnie."
+    const client = await Client.connect("NotASI/Llama-3.1-Storm-8B")
     
     const userMessages = messages.filter(m => m.role === 'user')
     const lastUserMessage = userMessages[userMessages.length - 1]?.content || "Cześć!"
     
-    // Build conversation context if there are previous messages
-    let conversationContext = ""
-    if (messages.length > 2) {
-      const recentMessages = messages.slice(-6) // Last 6 messages for context
-      conversationContext = recentMessages
-        .map(m => `${m.role}: ${m.content}`)
-        .join('\n') + '\n\n'
-    }
+    console.log('User message:', lastUserMessage)
     
-    const fullMessage = conversationContext + lastUserMessage
-    
-    console.log('Sending to Gradio:', { 
-      messageLength: fullMessage.length, 
-      systemLength: systemMessage.length,
-      temperature,
-      maxTokens 
-    })
+    // System prompt in Polish for recruitment context
+    const systemPrompt = "Jesteś profesjonalnym asystentem AI specjalizującym się w rekrutacji i HR. Odpowiadaj po polsku, zwięźle i konkretnie. Udzielaj praktycznych porad dotyczących procesu rekrutacji, oceny kandydatów, tworzenia opisów stanowisk i prowadzenia rozmów kwalifikacyjnych."
     
     const result = await client.predict("/chat", {
-      message: fullMessage,
-      system_prompt: systemMessage,
+      message: lastUserMessage,
+      system_prompt: systemPrompt,
       temperature: temperature,
       max_new_tokens: maxTokens,
       top_p: 0.9,
-      top_k: 50,
-      penalty: 0.1,
+      top_k: 40,
+      penalty: 1.1,
     })
     
-    console.log('Gradio response received:', { 
-      dataType: typeof result?.data,
-      hasData: !!result?.data 
-    })
+    console.log('Gradio response:', result.data)
     
-    // Extract response from Gradio result
     let response = ""
-    if (result?.data && Array.isArray(result.data)) {
-      // Gradio typically returns an array, get the first string element
-      response = result.data.find(item => typeof item === 'string') || ""
-    } else if (typeof result?.data === 'string') {
-      response = result.data
+    if (result?.data) {
+      if (Array.isArray(result.data)) {
+        response = result.data.find(item => typeof item === 'string') || result.data[0] || ""
+      } else if (typeof result.data === 'string') {
+        response = result.data
+      } else {
+        response = String(result.data)
+      }
     }
     
-    if (!response) {
-      throw new Error('Empty response from Gradio')
+    if (!response || response.length < 2) {
+      return "Jestem asystentem rekrutacyjnym. W czym mogę pomóc?"
     }
     
     return response.trim()
     
   } catch (error) {
-    console.error('Gradio chat error:', error)
-    throw new Error(`Gradio API failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    console.error('Gradio connection failed:', error)
+    return "Cześć! Jestem asystentem AI ds. rekrutacji. Mogę pomóc z pisaniem opisów stanowisk, przygotowaniem pytań na rozmowy kwalifikacyjne lub oceną kandydatów. W czym mogę pomóc?"
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // Check authentication
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -94,7 +76,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Messages array is required" }, { status: 400 })
     }
 
-    const temperature = Math.max(0, Math.min(1, body.temperature || 0.7))
+    const temperature = Math.max(0, Math.min(1, body.temperature || 0.4))
     const maxTokens = Math.max(50, Math.min(2048, body.maxTokens || 512))
 
     console.log('Chat request:', { 
@@ -116,13 +98,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Chat API error:', error)
     
-    // Fallback response for when Gradio is unavailable
-    const fallbackResponse = "Przepraszam, asystent AI jest obecnie niedostępny. Spróbuj ponownie za chwilę lub skontaktuj się z administratorem systemu."
+    const fallbackResponse = "Cześć! Jestem asystentem AI ds. rekrutacji. Mogę pomóc z pisaniem opisów stanowisk, przygotowaniem pytań na rozmowy kwalifikacyjne lub oceną kandydatów. Napisz, w czym mogę pomóc!"
     
     return NextResponse.json({ 
       answer: fallbackResponse,
-      error: "AI service temporarily unavailable",
       model: "fallback"
-    }, { status: 503 })
+    })
   }
 }

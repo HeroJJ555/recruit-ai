@@ -31,18 +31,18 @@ export function AIAssistantWidget() {
   const shouldStickToBottomRef = useRef(true)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Track manual scrolling: if user scrolls up beyond threshold, disable auto-stick until they reach bottom again
+ 
   const handleScroll = useCallback(() => {
     if (!scrollAreaRef.current) return
     const el = scrollAreaRef.current
-    const bottomThreshold = 64 // px
+    const bottomThreshold = 64
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     shouldStickToBottomRef.current = distanceFromBottom < bottomThreshold
   }, [])
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (!endRef.current) return
-    if (!shouldStickToBottomRef.current) return // user intentionally scrolled up
+    if (!shouldStickToBottomRef.current) return
     endRef.current.scrollIntoView({ behavior, block: 'end' })
   }, [])
 
@@ -67,23 +67,18 @@ export function AIAssistantWidget() {
       messages: payloadMessages,
     }
     try {
-      console.log('Sending chat request:', payload)
-      const res = await fetch("/api/ai/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-      console.log('Chat response status:', res.status)
+      const res = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        console.log('Error response:', j)
         throw new Error(j.error || `Błąd API (${res.status})`)
       }
       const data = await res.json()
-      console.log('Chat response data:', data)
       setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: data.answer || "(pusta odpowiedź)", pending: false } : m))
     } catch (e: any) {
       setErrorMsg(e.message)
       setMessages(prev => prev.map(m => m.id === pendingAssistant.id ? { ...m, content: "Błąd: " + e.message, error: true, pending: false } : m))
     } finally {
       setIsLoading(false)
-      // Focus input field immediately after sending
       setTimeout(() => {
         inputRef.current?.focus()
       }, 50)
