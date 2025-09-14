@@ -15,38 +15,29 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const userEmail = session?.user?.email
-  if (!userEmail) {
-    return NextResponse.json({ error: "Brak autoryzacji (brak email)" }, { status: 401 })
-  }
-  let body: unknown
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: "Nieprawidłowe JSON" }, { status: 400 })
-  }
-  const parsed = schema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Walidacja nie powiodła się", issues: parsed.error.flatten() }, { status: 400 })
-  }
-  const { name, image } = parsed.data
-  // Defensive: prisma model may not be migrated fully
-  if (!(prisma as any)?.user?.update) {
-    return NextResponse.json({ error: "Model User niedostępny. Upewnij się, że migracje zostały wykonane." }, { status: 500 })
-  }
-  try {
+    const session = await getServerSession(authOptions)
+    const userEmail = session?.user?.email
+    if (!userEmail) {
+      return NextResponse.json({ error: "Brak autoryzacji" }, { status: 401 })
+    }
+    let body: unknown
+    try { body = await req.json() } catch { return NextResponse.json({ error: "Nieprawidłowe JSON" }, { status: 400 }) }
+    const parsed = schema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Walidacja", issues: parsed.error.flatten() }, { status: 400 })
+    }
+    const { name, image } = parsed.data
     const updated = await prisma.user.update({
       where: { email: userEmail },
       data: {
         name: name === undefined ? undefined : name,
         image: image === undefined ? undefined : image || null,
-        updatedAt: new Date(),
       },
       select: { id: true, name: true, image: true, email: true },
     })
     return NextResponse.json({ user: updated })
   } catch (e: any) {
-    return NextResponse.json({ error: "Aktualizacja nie powiodła się", details: e.message?.slice(0, 300) }, { status: 500 })
+    return NextResponse.json({ error: "Aktualizacja nie powiodła się" }, { status: 500 })
   }
 }
