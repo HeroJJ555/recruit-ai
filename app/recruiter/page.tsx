@@ -4,8 +4,7 @@ import { AIAssistantWidget } from "@/components/recruiter/ai-assistant-widget"
 import { CandidateList } from "@/components/recruiter/candidate-list"
 import { RecentActivity } from "@/components/recruiter/recent-activity"
 import { Button } from "@/components/ui/button"
-import { Bell } from "lucide-react"
-import { JobForm } from "@/components/recruiter/job-form"
+import { Plus, Bell } from "lucide-react"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
@@ -33,7 +32,10 @@ export default async function RecruiterDashboard() {
                 <Bell className="h-4 w-4 mr-2" />
                 Powiadomienia
               </Button>
-              <JobForm />
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nowa oferta pracy
+              </Button>
             </div>
           </div>
         </header>
