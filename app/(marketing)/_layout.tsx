@@ -11,7 +11,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <Link href="/" className="text-sm inline-flex items-center gap-2 font-medium text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" /> Powrót
           </Link>
-          <nav className="text-xs text-muted-foreground uppercase tracking-wide">Informacje</nav>
           <div className="w-16" />
         </div>
       </header>
