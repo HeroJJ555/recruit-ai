@@ -34,13 +34,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch candidates with their CV analysis who haven't been contacted yet
+    // Fetch candidates with their CV analysis (no CONTACTED status filter to avoid enum drift)
     const candidates = await prisma.candidateApplication.findMany({
-      where: {
-        status: {
-          not: 'CONTACTED' // Exclude already contacted candidates
-        }
-      },
       select: {
         id: true,
         firstName: true,
