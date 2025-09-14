@@ -22,7 +22,22 @@ export function AIAssistantWidget() {
   const [messages, setMessages] = useState<Message[]>([{
     id: "init",
     role: "assistant",
+<<<<<<< HEAD
     content: "Cześć! Jestem Twoim asystentem AI. Zadaj pytanie o proces rekrutacji, opis stanowiska albo analizę kandydatów.",
+=======
+    content: `👋 Cześć! Jestem prawdziwym asystentem AI działającym na modelu **Llama-3.1-Storm-8B**, specjalizującym się w rekrutacji i HR.
+
+🧠 **Mogę Ci pomóc jako AI w:**
+• Analizowaniu CV i profili kandydatów
+• Tworzeniu opisów stanowisk pracy  
+• Przygotowaniu pytań do rozmów kwalifikacyjnych
+• Strategiach rekrutacyjnych i employer brandingu
+• Interpretacji danych HR i optymalizacji procesów
+
+**Zadaj mi dowolne pytanie związane z HR - odpowiem jako AI!**
+
+Przykład: *"Jak ocenić czy kandydat na stanowisko Senior React Developer pasuje do naszego zespołu?"*`,
+>>>>>>> 4d0541d36d9d9313bb5f30da37ae7872b55eab3c
     timestamp: new Date(),
   }])
   const [inputValue, setInputValue] = useState("")
@@ -69,9 +84,9 @@ export function AIAssistantWidget() {
       <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center space-x-2">
           <Brain className="h-5 w-5 text-primary" />
-          <span>Asystent AI</span>
+          <span>Asystent AI dla HR</span>
         </CardTitle>
-        <CardDescription>Zadaj pytanie lub poproś o pomoc w procesie rekrutacyjnym</CardDescription>
+        <CardDescription>Specjalistyczne wsparcie w procesach rekrutacyjnych i zarządzaniu talentami</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         <ScrollArea className="flex-1 pr-4 min-h-0" ref={scrollAreaRef as any} onScroll={handleScroll}>
@@ -85,7 +100,13 @@ export function AIAssistantWidget() {
                       {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className={`h-4 w-4 ${message.error ? "text-destructive" : "text-secondary-foreground"}`} />}
                     </div>
                     <div className={`p-3 rounded-lg text-sm leading-relaxed ${isUser ? "bg-primary text-primary-foreground" : message.error ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
-                      <p>{message.content}</p>
+                      <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ 
+                        __html: message.content
+                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                          .replace(/• /g, '• ')
+                          .replace(/\n/g, '<br/>')
+                      }} />
                       {message.pending && !message.error && (
                         <div className="mt-2 flex space-x-1">
                           <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
@@ -108,7 +129,7 @@ export function AIAssistantWidget() {
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Zadaj pytanie asystentowi"
+              placeholder="Np. 'Jak ocenić kandydata na stanowisko developera?' lub 'Przygotuj pytania do rozmowy kwalifikacyjnej'"
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
               disabled={isLoading}
             />
