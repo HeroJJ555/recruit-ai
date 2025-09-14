@@ -41,8 +41,17 @@ export default async function RecruiterCandidatesPage() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
-          <CandidatesTable items={applications as any} />
+        <main className="flex-1 overflow-auto p-6 space-y-10">
+          <section>
+            <h2 className="font-semibold text-lg mb-4">Nowe zgłoszenia</h2>
+            <p className="text-sm text-muted-foreground mb-2">Aplikacje oczekujące na decyzję / feedback</p>
+            <CandidatesTable items={active as any} />
+          </section>
+          <section>
+            <h2 className="font-semibold text-lg mb-4">Archiwum</h2>
+            <p className="text-sm text-muted-foreground mb-2">Aplikacje już rozpatrzone (feedback wysłany, odrzucone, zatrudnione itp.) — ukryte z głównego widoku</p>
+            <CandidatesTable items={archived as any} />
+          </section>
         </main>
       </div>
     </div>

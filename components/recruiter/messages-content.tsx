@@ -230,6 +230,14 @@ export default function MessagesContent() {
   // Unified AI generation helper using new /api/mail/generate endpoint
   const generateAIEmail = async (candidate: Candidate): Promise<string | null> => {
     try {
+      let temperature = 0.2;
+      if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('ai-temp');
+        if (stored) {
+          const num = parseFloat(stored);
+          if (!isNaN(num)) temperature = Math.max(0, Math.min(1, num));
+        }
+      }
       const response = await fetch('/api/mail/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,7 +252,8 @@ export default function MessagesContent() {
           },
           tone: aiTone,
           recruiterInstructions: aiInstructions || undefined,
-          language: 'pl'
+          language: 'pl',
+          temperature
         })
       });
       if (!response.ok) return null;
@@ -601,7 +610,8 @@ Zespół Rekrutacji`;
                                     },
                                     tone: aiTone,
                                     recruiterInstructions: aiInstructions || undefined,
-                                    language: 'pl'
+                                    language: 'pl',
+                                    temperature: ((): number => { try { const v = window.localStorage.getItem('ai-temp'); if (!v) return 0.2; const n = parseFloat(v); return isNaN(n)?0.2:Math.max(0,Math.min(1,n)); } catch { return 0.2 } })()
                                   })
                                 });
                                 if (!response.ok) throw new Error('Błąd generowania');

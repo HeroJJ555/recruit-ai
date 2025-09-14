@@ -56,9 +56,10 @@ async function perplexityChat(prompt: string): Promise<string> {
   return text
 }
 
-async function callOllama(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+async function callOllama(messages: ChatMessage[], opts?: { model?: string; json?: boolean; temperature?: number }) {
   const host = process.env.OLLAMA_HOST || 'http://localhost:11434'
   const model = opts?.model || process.env.OLLAMA_MODEL || 'llama3.1'
+  const temperature = typeof opts?.temperature === 'number' ? Math.max(0, Math.min(1, opts.temperature)) : 0.2
   const res = await fetch(`${host}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,7 +67,7 @@ async function callOllama(messages: ChatMessage[], opts?: { model?: string; json
       model,
       messages,
       stream: false,
-      options: { temperature: 0.2 },
+      options: { temperature },
     })
   })
   if (!res.ok) throw new Error(`Ollama error ${res.status}`)
@@ -76,7 +77,7 @@ async function callOllama(messages: ChatMessage[], opts?: { model?: string; json
 }
 
 // Plain text chat with fallback chain (OpenAI -> Puter -> Perplexity -> Ollama)
-export const smartChatPlain = async (systemPrompt: string, userPrompt: string): Promise<string> => {
+export const smartChatPlain = async (systemPrompt: string, userPrompt: string, opts?: { temperature?: number }): Promise<string> => {
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt }
@@ -84,7 +85,7 @@ export const smartChatPlain = async (systemPrompt: string, userPrompt: string): 
   // 1. OpenAI
   try {
     if (process.env.OPENAI_API_KEY) {
-      return await callOpenAI(messages, { json: false })
+  return await callOpenAI(messages, { json: false, temperature: opts?.temperature })
     }
   } catch (e) {
     console.warn('smartChatPlain: OpenAI failed', e)
@@ -106,7 +107,7 @@ export const smartChatPlain = async (systemPrompt: string, userPrompt: string): 
   // 4. Ollama local
   try {
     if (process.env.OLLAMA_HOST) {
-      return await callOllama(messages, { json: false })
+  return await callOllama(messages, { json: false, temperature: opts?.temperature })
     }
   } catch (e) {
     console.warn('smartChatPlain: Ollama failed', e)
@@ -114,11 +115,12 @@ export const smartChatPlain = async (systemPrompt: string, userPrompt: string): 
   throw new Error('No AI provider available')
 }
 
-async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json?: boolean }) {
+async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json?: boolean; temperature?: number }) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('Missing OPENAI_API_KEY')
   
   const model = opts?.model || process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const temperature = typeof opts?.temperature === 'number' ? Math.max(0, Math.min(1, opts.temperature)) : 0.2
   console.log(`🤖 OpenAI Request: model=${model}, json=${opts?.json || false}`)
   
   try {
@@ -131,7 +133,7 @@ async function callOpenAI(messages: ChatMessage[], opts?: { model?: string; json
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.2,
+  temperature,
         response_format: opts?.json ? { type: 'json_object' } : undefined,
       })
     })
